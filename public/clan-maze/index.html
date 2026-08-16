@@ -22,7 +22,7 @@
         margin: 0;
         height: 100%;
         overflow: hidden;
-        background: #07100c;
+        background: #08140e;
         color: #e2e8f0;
       }
       canvas {
@@ -149,6 +149,67 @@
       .banner.show {
         display: block;
       }
+      .mode-row,
+      .clan-pick {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin: 0 0 0.65rem;
+      }
+      .clan-pick button {
+        font-size: 0.72rem;
+        padding: 0.32rem 0.5rem;
+      }
+      .tag.you .role {
+        color: #fde68a;
+      }
+      .dpad {
+        display: none;
+        position: fixed;
+        left: 1rem;
+        bottom: 1.2rem;
+        z-index: 6;
+        width: 9.6rem;
+        height: 9.6rem;
+        user-select: none;
+        touch-action: none;
+      }
+      .dpad.show {
+        display: block;
+      }
+      .dpad button {
+        position: absolute;
+        width: 3rem;
+        height: 3rem;
+        border-radius: 12px;
+        font-size: 1.15rem;
+        line-height: 1;
+        background: rgba(17, 24, 39, 0.88);
+        border: 1px solid #64748b;
+        color: #f8fafc;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+      }
+      .dpad button:active,
+      .dpad button.held {
+        background: #164e63;
+        border-color: #22d3ee;
+      }
+      .dpad .up {
+        left: 3.3rem;
+        top: 0;
+      }
+      .dpad .left {
+        left: 0;
+        top: 3.3rem;
+      }
+      .dpad .right {
+        right: 0;
+        top: 3.3rem;
+      }
+      .dpad .down {
+        left: 3.3rem;
+        bottom: 0;
+      }
       .tag {
         text-align: center;
         font-size: 11px;
@@ -229,6 +290,16 @@
         home usually raises a warrior, with a 10% chance of a deputy and a 5% chance of
         a medicine cat.
       </p>
+      <div class="mode-row">
+        <button id="mode-watch" class="active" type="button">Watch</button>
+        <button id="mode-play" type="button">Play as warrior</button>
+      </div>
+      <div class="clan-pick" id="clan-pick">
+        <button type="button" data-clan="thunder" class="active">ThunderClan</button>
+        <button type="button" data-clan="shadow">ShadowClan</button>
+        <button type="button" data-clan="wind">WindClan</button>
+        <button type="button" data-clan="river">RiverClan</button>
+      </div>
       <div class="clans" id="clan-status"></div>
       <div class="row">
         <button id="pause" type="button">Pause</button>
@@ -240,11 +311,17 @@
         <span id="speed-val">1.0×</span>
       </label>
       <p class="hint">
-        Drag to orbit, scroll to zoom.
+        Drag to orbit, scroll to zoom. Arrows move your warrior.
         <a href="/">All projects</a>
       </p>
     </aside>
     <div class="banner" id="banner"></div>
+    <div class="dpad" id="dpad" aria-label="Move warrior">
+      <button class="up" type="button" data-dir="up">▲</button>
+      <button class="left" type="button" data-dir="left">◀</button>
+      <button class="right" type="button" data-dir="right">▶</button>
+      <button class="down" type="button" data-dir="down">▼</button>
+    </div>
     <script type="module">
       import * as THREE from "three";
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -296,13 +373,20 @@
         },
       ];
 
+      const FUR = {
+        thunder: { coat: 0xc2410c, dark: 0x7c2d12, belly: 0xfbbf24, eye: 0xf59e0b },
+        shadow: { coat: 0x1f1a24, dark: 0x0b0a10, belly: 0x4b4458, eye: 0xc4b5fd },
+        wind: { coat: 0xd6b37a, dark: 0xa16207, belly: 0xf5e6c8, eye: 0xa3e635 },
+        river: { coat: 0x64748b, dark: 0x334155, belly: 0xe2e8f0, eye: 0x7dd3fc },
+      };
+
       const mazeW = COLS * CELL;
       const mazeD = ROWS * CELL;
 
       const renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       renderer.setSize(innerWidth, innerHeight);
-      renderer.setClearColor(0x07100c, 1);
+      renderer.setClearColor(0x0a1610, 1);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       document.body.appendChild(renderer.domElement);
@@ -315,22 +399,23 @@
       document.body.appendChild(labelRenderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0x07100c, 38, 92);
+      scene.fog = new THREE.Fog(0x0a1610, 26, 78);
 
-      const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 200);
-      camera.position.set(0, 46, 32);
+      const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.1, 220);
+      camera.position.set(0, 26, 34);
 
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
-      controls.target.set(0, 0, 0);
-      controls.maxPolarAngle = Math.PI / 2.12;
-      controls.minDistance = 10;
-      controls.maxDistance = 78;
+      controls.target.set(0, 0.4, 0);
+      controls.maxPolarAngle = Math.PI / 2.18;
+      controls.minDistance = 8;
+      controls.maxDistance = 72;
       controls.dampingFactor = 0.06;
 
-      scene.add(new THREE.AmbientLight(0xb7c4d8, 0.42));
-      const moon = new THREE.DirectionalLight(0xdbeafe, 1.15);
-      moon.position.set(18, 34, 12);
+      scene.add(new THREE.HemisphereLight(0xb9d4c4, 0x1a2a18, 0.72));
+      scene.add(new THREE.AmbientLight(0x6b8f78, 0.22));
+      const moon = new THREE.DirectionalLight(0xffe2c2, 1.05);
+      moon.position.set(22, 28, 14);
       moon.castShadow = true;
       moon.shadow.mapSize.set(2048, 2048);
       moon.shadow.camera.near = 4;
@@ -341,17 +426,39 @@
       moon.shadow.camera.bottom = -40;
       scene.add(moon);
 
+      function makeGrassTexture() {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 256;
+        const g = canvas.getContext("2d");
+        g.fillStyle = "#163220";
+        g.fillRect(0, 0, 256, 256);
+        for (let i = 0; i < 5200; i++) {
+          const shade = 28 + Math.random() * 50;
+          g.fillStyle = `rgba(${shade * 0.45},${shade},${shade * 0.38},${0.12 + Math.random() * 0.4})`;
+          g.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 2, 2 + Math.random() * 5);
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(16, 16);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+
       const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(mazeW + 28, mazeD + 28),
-        new THREE.MeshStandardMaterial({ color: 0x102016, roughness: 0.95 })
+        new THREE.PlaneGeometry(mazeW + 36, mazeD + 36),
+        new THREE.MeshStandardMaterial({
+          color: 0x1a3a24,
+          map: makeGrassTexture(),
+          roughness: 0.96,
+        })
       );
       ground.rotation.x = -Math.PI / 2;
       ground.receiveShadow = true;
       scene.add(ground);
 
       const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(mazeW, mazeD),
-        new THREE.MeshStandardMaterial({ color: 0x1a2a1c, roughness: 0.9 })
+        new THREE.PlaneGeometry(mazeW + 0.4, mazeD + 0.4),
+        new THREE.MeshStandardMaterial({ color: 0x243c28, roughness: 0.94 })
       );
       floor.rotation.x = -Math.PI / 2;
       floor.position.y = 0.02;
@@ -359,14 +466,28 @@
       scene.add(floor);
 
       const shared = {
-        body: new THREE.SphereGeometry(0.28, 16, 12),
-        head: new THREE.SphereGeometry(0.2, 14, 12),
-        ear: new THREE.ConeGeometry(0.075, 0.16, 8),
-        leg: new THREE.CylinderGeometry(0.045, 0.04, 0.22, 6),
-        tail: new THREE.CylinderGeometry(0.038, 0.028, 0.46, 7),
+        body: new THREE.SphereGeometry(0.3, 18, 14),
+        chest: new THREE.SphereGeometry(0.22, 14, 12),
+        head: new THREE.SphereGeometry(0.2, 16, 14),
+        muzzle: new THREE.SphereGeometry(0.1, 10, 8),
+        ear: new THREE.ConeGeometry(0.075, 0.17, 7),
+        earInner: new THREE.ConeGeometry(0.045, 0.11, 6),
+        eye: new THREE.SphereGeometry(0.032, 8, 8),
+        nose: new THREE.SphereGeometry(0.028, 7, 6),
+        leg: new THREE.CylinderGeometry(0.042, 0.034, 0.24, 6),
+        paw: new THREE.SphereGeometry(0.048, 8, 6),
+        tailSeg: new THREE.SphereGeometry(0.068, 8, 6),
+        whisker: new THREE.CylinderGeometry(0.005, 0.003, 0.2, 4),
         leaf: new THREE.SphereGeometry(0.07, 8, 6),
-        crown: new THREE.TorusGeometry(0.12, 0.025, 8, 16),
-        wall: new THREE.BoxGeometry(CELL * 0.96, 1, CELL * 0.96),
+        crown: new THREE.TorusGeometry(0.12, 0.022, 8, 16),
+        trunk: new THREE.CylinderGeometry(0.13, 0.2, 1.15, 7),
+        pine: new THREE.ConeGeometry(0.72, 1.85, 8),
+        oak: new THREE.SphereGeometry(0.78, 8, 6),
+        bush: new THREE.SphereGeometry(0.46, 8, 6),
+        rock: new THREE.SphereGeometry(0.42, 7, 5),
+        path: new THREE.CylinderGeometry(CELL * 0.4, CELL * 0.46, 0.05, 8),
+        grass: new THREE.ConeGeometry(0.11, 0.32, 4),
+        log: new THREE.CylinderGeometry(0.11, 0.13, 1.15, 6),
         pad: new THREE.CylinderGeometry(CELL * 1.35, CELL * 1.45, 0.12, 20),
         xBar: new THREE.BoxGeometry(CELL * 2.1, 0.16, 0.22),
         prey: new THREE.SphereGeometry(0.22, 16, 12),
@@ -396,6 +517,11 @@
         wallDummy: new THREE.Object3D(),
         t: 0,
         over: false,
+        playMode: false,
+        playClan: "thunder",
+        player: null,
+        held: { up: false, down: false, left: false, right: false },
+        lastDir: null,
       };
 
       function shuffle(list) {
@@ -554,43 +680,114 @@
       }
 
       function makeCatMesh(clan, role) {
+        const fur = FUR[clan.id];
         const mat = new THREE.MeshStandardMaterial({
-          color: clan.color,
+          color: fur.coat,
           emissive: clan.color,
-          emissiveIntensity: 0.18,
-          roughness: 0.48,
-          metalness: 0.08,
+          emissiveIntensity: 0.05,
+          roughness: 0.88,
+          metalness: 0.02,
         });
         const dark = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(clan.color).multiplyScalar(0.45),
-          roughness: 0.55,
+          color: fur.dark,
+          roughness: 0.9,
         });
+        const belly = new THREE.MeshStandardMaterial({
+          color: fur.belly,
+          roughness: 0.86,
+        });
+        const eyeMat = new THREE.MeshStandardMaterial({
+          color: fur.eye,
+          emissive: fur.eye,
+          emissiveIntensity: 0.45,
+          roughness: 0.25,
+        });
+        const noseMat = new THREE.MeshStandardMaterial({ color: 0x1c1410, roughness: 0.4 });
+        const innerEar = new THREE.MeshStandardMaterial({ color: 0xe8a39b, roughness: 0.7 });
         const group = new THREE.Group();
+
         const body = new THREE.Mesh(shared.body, mat);
-        body.scale.set(1.25, 0.78, 1.95);
-        body.position.y = 0.38;
+        body.scale.set(1.05, 0.72, 1.85);
+        body.position.y = 0.36;
         body.castShadow = true;
+        const chest = new THREE.Mesh(shared.chest, belly);
+        chest.scale.set(1.05, 0.85, 1.1);
+        chest.position.set(0, 0.32, 0.28);
         const head = new THREE.Mesh(shared.head, mat);
-        head.position.set(0, 0.56, 0.44);
+        head.position.set(0, 0.54, 0.48);
         head.castShadow = true;
+        const muzzle = new THREE.Mesh(shared.muzzle, belly);
+        muzzle.scale.set(0.95, 0.72, 1.15);
+        muzzle.position.set(0, 0.48, 0.64);
+        const nose = new THREE.Mesh(shared.nose, noseMat);
+        nose.position.set(0, 0.5, 0.74);
+        const eyeL = new THREE.Mesh(shared.eye, eyeMat);
+        const eyeR = new THREE.Mesh(shared.eye, eyeMat);
+        eyeL.position.set(-0.08, 0.58, 0.62);
+        eyeR.position.set(0.08, 0.58, 0.62);
         const earL = new THREE.Mesh(shared.ear, mat);
         const earR = new THREE.Mesh(shared.ear, mat);
-        earL.position.set(-0.12, 0.76, 0.4);
-        earR.position.set(0.12, 0.76, 0.4);
-        const tail = new THREE.Mesh(shared.tail, mat);
-        tail.position.set(0, 0.5, -0.58);
-        tail.rotation.x = 0.95;
-        const legs = [
-          [-0.14, 0.11, 0.2],
-          [0.14, 0.11, 0.2],
-          [-0.14, 0.11, -0.22],
-          [0.14, 0.11, -0.22],
-        ].map(([x, y, z]) => {
+        earL.position.set(-0.11, 0.74, 0.44);
+        earR.position.set(0.11, 0.74, 0.44);
+        const innerL = new THREE.Mesh(shared.earInner, innerEar);
+        const innerR = new THREE.Mesh(shared.earInner, innerEar);
+        innerL.position.set(-0.11, 0.72, 0.46);
+        innerR.position.set(0.11, 0.72, 0.46);
+        const stripe = new THREE.Mesh(shared.body, dark);
+        stripe.scale.set(0.55, 0.38, 1.55);
+        stripe.position.set(0, 0.44, -0.02);
+
+        const tail = new THREE.Group();
+        tail.position.set(0, 0.4, -0.42);
+        for (let i = 0; i < 4; i++) {
+          const seg = new THREE.Mesh(shared.tailSeg, i === 3 ? dark : mat);
+          seg.position.set(0, 0.08 * i, -0.13 * i);
+          seg.scale.setScalar(1 - i * 0.14);
+          tail.add(seg);
+        }
+
+        const legs = [];
+        for (const [x, z] of [
+          [-0.14, 0.22],
+          [0.14, 0.22],
+          [-0.14, -0.24],
+          [0.14, -0.24],
+        ]) {
           const leg = new THREE.Mesh(shared.leg, dark);
-          leg.position.set(x, y, z);
-          return leg;
-        });
-        group.add(body, head, earL, earR, tail, ...legs);
+          leg.position.set(x, 0.13, z);
+          const paw = new THREE.Mesh(shared.paw, dark);
+          paw.position.set(x, 0.04, z + 0.02);
+          legs.push(leg, paw);
+        }
+
+        const whiskers = [];
+        for (const side of [-1, 1]) {
+          for (const tilt of [-0.25, 0, 0.25]) {
+            const w = new THREE.Mesh(shared.whisker, dark);
+            w.position.set(side * 0.12, 0.48, 0.68);
+            w.rotation.z = side * (1.15 + tilt);
+            w.rotation.y = side * 0.15;
+            whiskers.push(w);
+          }
+        }
+
+        group.add(
+          body,
+          chest,
+          head,
+          muzzle,
+          nose,
+          eyeL,
+          eyeR,
+          earL,
+          earR,
+          innerL,
+          innerR,
+          stripe,
+          tail,
+          ...legs,
+          ...whiskers
+        );
         if (role === "leader") {
           const crown = new THREE.Mesh(
             shared.crown,
@@ -600,24 +797,25 @@
               roughness: 0.3,
             })
           );
-          crown.position.set(0, 0.64, 0.44);
+          crown.position.set(0, 0.62, 0.48);
           crown.rotation.x = Math.PI / 2;
           group.add(crown);
-          group.scale.setScalar(1.22);
+          group.scale.setScalar(1.18);
         }
         if (role === "medicine") {
           const leaf = new THREE.Mesh(
             shared.leaf,
             new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.4 })
           );
-          leaf.position.set(0.16, 0.5, -0.05);
+          leaf.position.set(0.16, 0.5, -0.02);
           group.add(leaf);
         }
-        if (role === "warrior") {
-          group.scale.setScalar(0.92);
-        }
+        if (role === "warrior") group.scale.setScalar(0.94);
+        if (role === "deputy") group.scale.setScalar(1.06);
         group.userData.body = body;
         group.userData.mat = mat;
+        group.userData.baseEmit = 0.05;
+        group.userData.tail = tail;
         return group;
       }
 
@@ -628,6 +826,7 @@
       }
 
       function roleLabel(cat) {
+        if (cat.player) return `You · Warrior ${cat.clanName}`;
         if (cat.role === "medicine") return `Medicine cat ${cat.clanName}`;
         if (cat.role === "leader") return `Leader ${cat.clanName}`;
         if (cat.role === "warrior") return `Warrior ${cat.clanName}`;
@@ -656,44 +855,208 @@
         if (den.xMark) den.xMark.visible = den.eliminated;
       }
 
-      function buildWalls() {
-        if (state.walls) {
-          worldGroup.remove(state.walls);
-          state.walls.dispose();
-        }
-        let count = 0;
-        for (let r = 0; r < ROWS; r++) {
-          for (let c = 0; c < COLS; c++) if (state.grid[r][c] === 1) count++;
-        }
-        const mesh = new THREE.InstancedMesh(
-          shared.wall,
-          new THREE.MeshStandardMaterial({
-            color: 0x3f4f3c,
-            roughness: 0.82,
-          }),
-          count
-        );
-        mesh.castShadow = true;
+      function cellRand(r, c, salt = 0) {
+        const n = Math.sin(r * 12.9898 + c * 78.233 + salt * 45.164) * 43758.5453;
+        return n - Math.floor(n);
+      }
+
+      function pushInstance(list, x, y, z, sx, sy, sz, rotY, color, rx = 0, rz = 0) {
+        list.push({ x, y, z, sx, sy, sz, rotY, color, rx, rz });
+      }
+
+      function buildInstanced(geo, mat, items, cast = true) {
+        if (!items.length) return null;
+        const mesh = new THREE.InstancedMesh(geo, mat, items.length);
+        mesh.castShadow = cast;
         mesh.receiveShadow = true;
-        let i = 0;
+        const dummy = state.wallDummy;
         const color = new THREE.Color();
-        for (let r = 0; r < ROWS; r++) {
-          for (let c = 0; c < COLS; c++) {
-            if (state.grid[r][c] !== 1) continue;
-            const { x, z } = cellCenter(r, c);
-            const h = 1.15 + ((r * 13 + c * 7) % 8) * 0.06;
-            state.wallDummy.position.set(x, h / 2, z);
-            state.wallDummy.scale.set(1, h, 1);
-            state.wallDummy.updateMatrix();
-            mesh.setMatrixAt(i, state.wallDummy.matrix);
-            color.setHSL(0.28, 0.22, 0.18 + ((r + c) % 5) * 0.03);
+        items.forEach((it, i) => {
+          dummy.position.set(it.x, it.y, it.z);
+          dummy.rotation.set(it.rx || 0, it.rotY || 0, it.rz || 0);
+          dummy.scale.set(it.sx, it.sy, it.sz);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+          if (it.color != null) {
+            color.setHex(it.color);
             mesh.setColorAt(i, color);
-            i++;
           }
-        }
+        });
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         worldGroup.add(mesh);
-        state.walls = mesh;
+        return mesh;
+      }
+
+      function buildWalls() {
+        const trunks = [];
+        const pines = [];
+        const oaks = [];
+        const bushes = [];
+        const rocks = [];
+        const paths = [];
+        const grass = [];
+        const logs = [];
+
+        const pineGreen = [0x14532d, 0x166534, 0x1a3d24, 0x0f3d22];
+        const oakGreen = [0x1d4a2a, 0x245c32, 0x163820];
+        const bushGreen = [0x1f5c32, 0x2d6a3a, 0x164428];
+        const rockGray = [0x6b7280, 0x57534e, 0x78716c, 0x44403c];
+        const pathBrown = [0x5b4634, 0x6b5340, 0x4a3829];
+
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const { x, z } = cellCenter(r, c);
+            const jx = (cellRand(r, c, 1) - 0.5) * CELL * 0.28;
+            const jz = (cellRand(r, c, 2) - 0.5) * CELL * 0.28;
+            if (state.grid[r][c] === 0) {
+              if (!isDenCell(r, c)) {
+                pushInstance(
+                  paths,
+                  x,
+                  0.03,
+                  z,
+                  0.85 + cellRand(r, c, 3) * 0.3,
+                  1,
+                  0.85 + cellRand(r, c, 4) * 0.3,
+                  cellRand(r, c, 5) * Math.PI,
+                  pathBrown[(r + c) % pathBrown.length]
+                );
+              }
+              if (cellRand(r, c, 6) > 0.72) {
+                pushInstance(
+                  grass,
+                  x + jx * 1.4,
+                  0.14,
+                  z + jz * 1.4,
+                  0.7 + cellRand(r, c, 7),
+                  0.6 + cellRand(r, c, 8),
+                  0.7 + cellRand(r, c, 9),
+                  cellRand(r, c, 10) * 6,
+                  bushGreen[(r + c) % bushGreen.length]
+                );
+              }
+              continue;
+            }
+
+            const border = r === 0 || c === 0 || r === ROWS - 1 || c === COLS - 1;
+            const roll = cellRand(r, c, 11);
+            if (border || roll > 0.52) {
+              const h = 0.85 + cellRand(r, c, 12) * 0.7;
+              pushInstance(trunks, x + jx, 0.55 * h, z + jz, 0.85, h, 0.85, 0, 0x4a3424);
+              if (cellRand(r, c, 13) > 0.42) {
+                pushInstance(
+                  pines,
+                  x + jx,
+                  1.05 * h + 0.35,
+                  z + jz,
+                  0.85 + cellRand(r, c, 14) * 0.4,
+                  h * (0.9 + cellRand(r, c, 15) * 0.35),
+                  0.85 + cellRand(r, c, 16) * 0.4,
+                  0,
+                  pineGreen[(r + c) % pineGreen.length]
+                );
+              } else {
+                pushInstance(
+                  oaks,
+                  x + jx,
+                  1.15 * h,
+                  z + jz,
+                  0.9 + cellRand(r, c, 17) * 0.45,
+                  0.75 + cellRand(r, c, 18) * 0.3,
+                  0.9 + cellRand(r, c, 19) * 0.45,
+                  0,
+                  oakGreen[(r + c) % oakGreen.length]
+                );
+              }
+              if (cellRand(r, c, 20) > 0.55) {
+                pushInstance(
+                  bushes,
+                  x + jx * 2,
+                  0.28,
+                  z + jz * 2,
+                  0.7 + cellRand(r, c, 21),
+                  0.55 + cellRand(r, c, 22) * 0.5,
+                  0.7 + cellRand(r, c, 23),
+                  0,
+                  bushGreen[(r * 3 + c) % bushGreen.length]
+                );
+              }
+            } else if (roll > 0.26) {
+              const s = 0.7 + cellRand(r, c, 24) * 0.7;
+              pushInstance(
+                rocks,
+                x + jx,
+                0.22 * s,
+                z + jz,
+                s * (0.9 + cellRand(r, c, 25) * 0.5),
+                s * (0.55 + cellRand(r, c, 26) * 0.45),
+                s * (0.85 + cellRand(r, c, 27) * 0.5),
+                cellRand(r, c, 28) * 6,
+                rockGray[(r + c) % rockGray.length],
+                cellRand(r, c, 29) * 0.6,
+                cellRand(r, c, 30) * 0.5
+              );
+              if (cellRand(r, c, 31) > 0.6) {
+                pushInstance(
+                  rocks,
+                  x - jx * 1.2,
+                  0.14,
+                  z - jz * 1.2,
+                  0.45 + cellRand(r, c, 32) * 0.4,
+                  0.3 + cellRand(r, c, 33) * 0.25,
+                  0.45 + cellRand(r, c, 34) * 0.4,
+                  cellRand(r, c, 35) * 4,
+                  rockGray[(r + 2 * c) % rockGray.length]
+                );
+              }
+            } else {
+              pushInstance(
+                bushes,
+                x + jx,
+                0.32,
+                z + jz,
+                1.05 + cellRand(r, c, 36) * 0.55,
+                0.7 + cellRand(r, c, 37) * 0.5,
+                1.05 + cellRand(r, c, 38) * 0.55,
+                0,
+                bushGreen[(r + c) % bushGreen.length]
+              );
+              if (cellRand(r, c, 39) > 0.65) {
+                pushInstance(
+                  logs,
+                  x,
+                  0.12,
+                  z + jz,
+                  0.8 + cellRand(r, c, 40) * 0.4,
+                  0.8,
+                  0.8,
+                  Math.PI / 2 + cellRand(r, c, 41),
+                  0x5b3d28
+                );
+              }
+            }
+          }
+        }
+
+        const mats = {
+          trunk: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92 }),
+          pine: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82 }),
+          oak: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.84 }),
+          bush: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 }),
+          rock: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }),
+          path: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.96 }),
+          grass: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }),
+          log: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }),
+        };
+        buildInstanced(shared.trunk, mats.trunk, trunks);
+        buildInstanced(shared.pine, mats.pine, pines);
+        buildInstanced(shared.oak, mats.oak, oaks);
+        buildInstanced(shared.bush, mats.bush, bushes);
+        buildInstanced(shared.rock, mats.rock, rocks);
+        buildInstanced(shared.path, mats.path, paths, false);
+        buildInstanced(shared.grass, mats.grass, grass, false);
+        buildInstanced(shared.log, mats.log, logs);
+        state.walls = true;
       }
 
       function buildDens() {
@@ -792,6 +1155,8 @@
           followDeputy: extra.followDeputy ?? false,
           patrol: extra.patrol ?? (role === "deputy" ? (Math.random() < 0.72 ? "battle" : "hunt") : null),
           patrolUntil: extra.patrolUntil ?? (role === "deputy" ? 5 + Math.random() * 7 : 0),
+          player: extra.player ?? false,
+          playerTarget: null,
           mesh,
           label,
           labelEl,
@@ -813,6 +1178,33 @@
           ];
           roles.forEach((role, i) => createCat(den, role, spots[i]));
         }
+        spawnPlayerWarrior();
+      }
+
+      function spawnPlayerWarrior() {
+        state.player = null;
+        if (!state.playMode) return;
+        const den = state.dens.find((d) => d.id === state.playClan);
+        if (!den || den.eliminated) return;
+        const cat = createCat(den, "warrior", den.mid, {
+          id: `${den.id}-player`,
+          iframe: 1.2,
+          followDeputy: false,
+          player: true,
+        });
+        cat.labelEl.classList.add("you");
+        const mark = new THREE.Mesh(
+          new THREE.TorusGeometry(0.4, 0.035, 8, 22),
+          new THREE.MeshStandardMaterial({
+            color: 0xf8fafc,
+            emissive: 0xfde68a,
+            emissiveIntensity: 0.55,
+          })
+        );
+        mark.rotation.x = Math.PI / 2;
+        mark.position.y = 0.05;
+        cat.mesh.add(mark);
+        state.player = cat;
       }
 
       function mapPrey() {
@@ -944,6 +1336,9 @@
         const bob = cat.dead || cat.respawning ? 0 : Math.sin(state.t * 11 + cat.x) * 0.025;
         cat.mesh.position.set(cat.x, bob, cat.z);
         cat.mesh.rotation.y = cat.facing;
+        if (cat.mesh.userData.tail) {
+          cat.mesh.userData.tail.rotation.y = Math.sin(state.t * 7 + cat.x) * 0.28;
+        }
         cat.label.position.set(cat.x, 0.02, cat.z);
       }
 
@@ -1013,7 +1408,14 @@
         cat.iframe = HIT_IFRAME;
         cat.flash = 0.22;
         if (cat.hp <= 0) {
-          if (cat.role === "leader") {
+          if (cat.player) {
+            dropCarried(cat);
+            cat.respawning = true;
+            cat.respawnIn = 4;
+            cat.hp = 0;
+            cat.playerTarget = null;
+            hideCat(cat, true);
+          } else if (cat.role === "leader") {
             if (cat.lives <= 0) wipeClan(cat.clanId);
             else {
               cat.lives -= 1;
@@ -1056,7 +1458,8 @@
       }
 
       function pickGoal(cat) {
-        const allies = liveCats().filter((c) => c.clanId === cat.clanId && c !== cat);
+        if (cat.player) return { r: cat.r, c: cat.c };
+        const allies = liveCats().filter((c) => c.clanId === cat.clanId && c !== cat && !c.player);
         const enemies = liveCats().filter((c) => c.clanId !== cat.clanId);
         const cellOf = (other) => ({ r: other.r, c: other.c });
         const med = allies.find((c) => c.role === "medicine");
@@ -1135,7 +1538,91 @@
         cat.rethink = cat.carrying ? 0.55 : 1.4 + Math.random() * 1.6;
       }
 
+      function finishPlayerRespawn(cat) {
+        if (cat.den.eliminated) {
+          cat.dead = true;
+          cat.respawning = false;
+          hideCat(cat, true);
+          return;
+        }
+        cat.respawning = false;
+        cat.hp = START_HP;
+        cat.iframe = 1.5;
+        cat.playerTarget = null;
+        placeCat(cat, cat.den.mid);
+        hideCat(cat, false);
+        setCatLabel(cat);
+      }
+
+      const DIR_DELTA = {
+        up: { dr: -1, dc: 0 },
+        down: { dr: 1, dc: 0 },
+        left: { dr: 0, dc: -1 },
+        right: { dr: 0, dc: 1 },
+      };
+
+      function activeDir() {
+        if (state.lastDir && state.held[state.lastDir]) return state.lastDir;
+        return ["up", "down", "left", "right"].find((d) => state.held[d]) || null;
+      }
+
+      function setHeld(dir, on) {
+        state.held[dir] = on;
+        if (on) state.lastDir = dir;
+        else if (state.lastDir === dir) {
+          state.lastDir = ["up", "down", "left", "right"].find((d) => state.held[d]) || null;
+        }
+        document.querySelector(`.dpad [data-dir="${dir}"]`)?.classList.toggle("held", on);
+      }
+
+      function movePlayer(cat, dt) {
+        const speed = 2.85 * state.speed;
+        const atCenter = (() => {
+          const here = cellCenter(cat.r, cat.c);
+          return Math.hypot(cat.x - here.x, cat.z - here.z) < 0.1;
+        })();
+        if (atCenter) {
+          const dir = activeDir();
+          if (dir) {
+            const { dr, dc } = DIR_DELTA[dir];
+            const nr = cat.r + dr;
+            const nc = cat.c + dc;
+            if (walkable(nr, nc)) cat.playerTarget = { r: nr, c: nc };
+          }
+        }
+        const dest = cat.playerTarget;
+        if (!dest) return;
+        const target = cellCenter(dest.r, dest.c);
+        const dx = target.x - cat.x;
+        const dz = target.z - cat.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 0.08) {
+          cat.r = dest.r;
+          cat.c = dest.c;
+          cat.x = target.x;
+          cat.z = target.z;
+          cat.playerTarget = null;
+          const again = activeDir();
+          if (again) {
+            const next = DIR_DELTA[again];
+            const nr = cat.r + next.dr;
+            const nc = cat.c + next.dc;
+            if (walkable(nr, nc)) cat.playerTarget = { r: nr, c: nc };
+          }
+        } else {
+          const step = Math.min(dist, speed * dt);
+          cat.x += (dx / dist) * step;
+          cat.z += (dz / dist) * step;
+          cat.facing = Math.atan2(dx, dz);
+        }
+        syncCatVisual(cat);
+      }
+
       function moveCat(cat, dt) {
+        if (cat.player) {
+          movePlayer(cat, dt);
+          return;
+        }
         cat.rethink -= dt;
         if (cat.rethink <= 0 || !cat.path) retarget(cat);
         if (!cat.path || cat.pathI >= cat.path.length) return;
@@ -1209,7 +1696,13 @@
             const leaders = living.filter((c) => c.role === "leader");
             const meds = living.filter((c) => c.role === "medicine");
             const deputies = living.filter((c) => c.role === "deputy");
-            const warriors = living.filter((c) => c.role === "warrior");
+            const warriors = living.filter((c) => c.role === "warrior" && !c.player);
+            const you = living.find((c) => c.player);
+            if (you) {
+              bits.unshift(
+                you.respawning ? `You respawn ${Math.ceil(you.respawnIn)}s` : `You ${you.hp}`
+              );
+            }
             for (const c of leaders) {
               bits.push(
                 c.respawning
@@ -1260,39 +1753,50 @@
       }
 
       function plantTrees() {
-        const trunkGeo = new THREE.CylinderGeometry(0.18, 0.24, 1.1, 6);
-        const crownGeo = new THREE.ConeGeometry(0.95, 2.1, 8);
-        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1a, roughness: 0.9 });
-        const crownMat = new THREE.MeshStandardMaterial({ color: 0x16351c, roughness: 0.7 });
-        const halfW = mazeW / 2 + 3.2;
-        const halfD = mazeD / 2 + 3.2;
-        for (let i = 0; i < 42; i++) {
+        const trunks = [];
+        const pines = [];
+        const oaks = [];
+        const rocks = [];
+        const bushes = [];
+        const halfW = mazeW / 2 + 2.8;
+        const halfD = mazeD / 2 + 2.8;
+        for (let i = 0; i < 90; i++) {
           const side = i % 4;
           let x = 0;
           let z = 0;
           if (side === 0) {
-            x = -halfW - Math.random() * 6;
-            z = (Math.random() - 0.5) * (mazeD + 10);
+            x = -halfW - Math.random() * 8;
+            z = (Math.random() - 0.5) * (mazeD + 14);
           } else if (side === 1) {
-            x = halfW + Math.random() * 6;
-            z = (Math.random() - 0.5) * (mazeD + 10);
+            x = halfW + Math.random() * 8;
+            z = (Math.random() - 0.5) * (mazeD + 14);
           } else if (side === 2) {
-            z = -halfD - Math.random() * 6;
-            x = (Math.random() - 0.5) * (mazeW + 10);
+            z = -halfD - Math.random() * 8;
+            x = (Math.random() - 0.5) * (mazeW + 14);
           } else {
-            z = halfD + Math.random() * 6;
-            x = (Math.random() - 0.5) * (mazeW + 10);
+            z = halfD + Math.random() * 8;
+            x = (Math.random() - 0.5) * (mazeW + 14);
           }
-          const g = new THREE.Group();
-          const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-          trunk.position.y = 0.55;
-          const crown = new THREE.Mesh(crownGeo, crownMat);
-          crown.position.y = 1.85;
-          g.add(trunk, crown);
-          g.position.set(x, 0, z);
-          g.scale.setScalar(0.85 + Math.random() * 0.5);
-          worldGroup.add(g);
+          const h = 0.85 + Math.random() * 0.7;
+          pushInstance(trunks, x, 0.55 * h, z, 0.9, h, 0.9, 0, 0x4a3424);
+          if (Math.random() > 0.4) {
+            pushInstance(pines, x, 1.1 * h + 0.3, z, 0.9 + Math.random() * 0.5, h, 0.9 + Math.random() * 0.5, 0, 0x14532d);
+          } else {
+            pushInstance(oaks, x, 1.2 * h, z, 1 + Math.random() * 0.4, 0.8, 1 + Math.random() * 0.4, 0, 0x1d4a2a);
+          }
+          if (Math.random() > 0.55) {
+            pushInstance(rocks, x + (Math.random() - 0.5) * 1.4, 0.16, z + (Math.random() - 0.5) * 1.4, 0.5 + Math.random() * 0.5, 0.35, 0.5 + Math.random() * 0.5, Math.random() * 6, 0x57534e);
+          }
+          if (Math.random() > 0.5) {
+            pushInstance(bushes, x + (Math.random() - 0.5), 0.28, z + (Math.random() - 0.5), 0.8, 0.6, 0.8, 0, 0x1f5c32);
+          }
         }
+        const white = { color: 0xffffff, roughness: 0.9 };
+        buildInstanced(shared.trunk, new THREE.MeshStandardMaterial(white), trunks);
+        buildInstanced(shared.pine, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82 }), pines);
+        buildInstanced(shared.oak, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.84 }), oaks);
+        buildInstanced(shared.rock, new THREE.MeshStandardMaterial(white), rocks);
+        buildInstanced(shared.bush, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 }), bushes);
       }
 
       function reset() {
@@ -1319,16 +1823,20 @@
             const mat = cat.mesh.userData.mat;
             if (mat) {
               mat.emissive.setHex(cat.flash > 0 ? 0xaa2222 : 0x22aa55);
-              mat.emissiveIntensity = 0.18 + Math.abs(cat.flash) * 4;
+              mat.emissiveIntensity = (cat.mesh.userData.baseEmit ?? 0.05) + Math.abs(cat.flash) * 4;
             }
             cat.flash = cat.flash > 0 ? Math.max(0, cat.flash - step) : Math.min(0, cat.flash + step);
             if (cat.flash === 0 && mat) {
               mat.emissive.setHex(cat.color);
-              mat.emissiveIntensity = 0.18;
+              mat.emissiveIntensity = cat.mesh.userData.baseEmit ?? 0.05;
             }
           }
           if (cat.respawning) {
             cat.respawnIn -= step;
+            if (cat.player) {
+              if (cat.respawnIn <= 0) finishPlayerRespawn(cat);
+              continue;
+            }
             cat.den.respawnIn = cat.respawnIn;
             if (cat.respawnIn <= 0) finishLeaderRespawn(cat);
             else if (Math.floor(cat.respawnIn * 4) !== Math.floor((cat.respawnIn + step) * 4)) {
@@ -1374,12 +1882,80 @@
         state.speed = Number(speedInput.value);
         speedVal.textContent = `${state.speed}×`;
       });
+
+      const watchBtn = document.getElementById("mode-watch");
+      const playBtn = document.getElementById("mode-play");
+      const clanPick = document.getElementById("clan-pick");
+      const dpad = document.getElementById("dpad");
+
+      function syncPlayUi() {
+        watchBtn.classList.toggle("active", !state.playMode);
+        playBtn.classList.toggle("active", state.playMode);
+        dpad.classList.toggle("show", state.playMode);
+        for (const btn of clanPick.querySelectorAll("button")) {
+          btn.classList.toggle("active", btn.dataset.clan === state.playClan);
+        }
+      }
+
+      watchBtn.addEventListener("click", () => {
+        state.playMode = false;
+        syncPlayUi();
+        reset();
+      });
+      playBtn.addEventListener("click", () => {
+        state.playMode = true;
+        syncPlayUi();
+        reset();
+      });
+      clanPick.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-clan]");
+        if (!btn) return;
+        state.playClan = btn.dataset.clan;
+        syncPlayUi();
+        if (state.playMode) reset();
+      });
+
+      const keyDir = {
+        ArrowUp: "up",
+        KeyW: "up",
+        ArrowDown: "down",
+        KeyS: "down",
+        ArrowLeft: "left",
+        KeyA: "left",
+        ArrowRight: "right",
+        KeyD: "right",
+      };
+      function bindPad(el) {
+        const dir = el.dataset.dir;
+        const down = (ev) => {
+          ev.preventDefault();
+          setHeld(dir, true);
+        };
+        const up = (ev) => {
+          ev.preventDefault();
+          setHeld(dir, false);
+        };
+        el.addEventListener("pointerdown", down);
+        el.addEventListener("pointerup", up);
+        el.addEventListener("pointerleave", up);
+        el.addEventListener("pointercancel", up);
+      }
+      dpad.querySelectorAll("button").forEach(bindPad);
+
       addEventListener("keydown", (e) => {
+        if (keyDir[e.code] && state.playMode) {
+          e.preventDefault();
+          setHeld(keyDir[e.code], true);
+          return;
+        }
         if (e.code === "Space") {
           e.preventDefault();
           pauseBtn.click();
         }
         if (e.code === "KeyR") reset();
+      });
+      addEventListener("keyup", (e) => {
+        if (keyDir[e.code]) setHeld(keyDir[e.code], false);
       });
       addEventListener("resize", () => {
         camera.aspect = innerWidth / innerHeight;
@@ -1389,9 +1965,15 @@
       });
 
       const clock = new THREE.Clock();
+      const follow = new THREE.Vector3();
+      syncPlayUi();
       reset();
       renderer.setAnimationLoop(() => {
         tick(clock.getDelta());
+        if (state.playMode && state.player && !state.player.dead && !state.player.respawning) {
+          follow.set(state.player.x, 0.45, state.player.z);
+          controls.target.lerp(follow, 0.08);
+        }
         controls.update();
         renderer.render(scene, camera);
         labelRenderer.render(scene, camera);
