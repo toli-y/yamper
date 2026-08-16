@@ -388,9 +388,18 @@
 
       const dummy = new THREE.Object3D();
       const color = new THREE.Color();
+      const targetColor = new THREE.Color();
+      const bornColor = new THREE.Color(0x9af0ff);
+      const dieColor = new THREE.Color(0xff8b5c);
+      const deadColor = new THREE.Color(0x0c121c);
 
       let grid = new Uint8Array(SIZE);
       let next = new Uint8Array(SIZE);
+      const visLife = new Float32Array(SIZE);
+      const visN = new Float32Array(SIZE);
+      const visR = new Float32Array(SIZE);
+      const visG = new Float32Array(SIZE);
+      const visB = new Float32Array(SIZE);
       const history = [];
       let generation = 0;
       let running = true;
@@ -492,6 +501,7 @@
         if (name === "random") randomCluster();
         else stampCentered(PATTERNS[name]);
         frameLiveCells();
+        updateInstances(0, true);
       }
 
       function frameLiveCells() {
@@ -521,29 +531,46 @@
         camera.position.set(cx + dist * 0.42, dist * 0.92, cz + dist * 0.58);
       }
 
-      function updateInstances() {
+      function ease(t) {
+        return t * t * (3 - 2 * t);
+      }
+
+      function aliveColor(n, out) {
+        const u = n / 8;
+        out.setHSL(0.52 - u * 0.42, 0.85, 0.42 + u * 0.18);
+      }
+
+      function updateInstances(dt, snap) {
+        const rate = Math.max(2.6, gensPerSec * 1.55);
+        const k = snap ? 1 : 1 - Math.exp(-Math.min(dt, 0.05) * rate);
+        const colorK = snap ? 1 : 1 - Math.exp(-Math.min(dt, 0.05) * rate * 1.2);
         let alive = 0;
         for (let y = 0; y < ROWS; y++) {
           for (let x = 0; x < COLS; x++) {
             const i = y * COLS + x;
             const isAlive = grid[i] === 1;
-            const n = isAlive ? neighbors(x, y) : 0;
-            const h = isAlive ? 0.45 + n * 0.32 : 0.02;
-            dummy.position.set(x * CELL + CELL / 2, h / 2, y * CELL + CELL / 2);
-            dummy.scale.set(
-              isAlive ? 1 : 0.001,
-              isAlive ? h : 0.001,
-              isAlive ? 1 : 0.001
-            );
-            dummy.updateMatrix();
-            mesh.setMatrixAt(i, dummy.matrix);
+            const n = neighbors(x, y);
+            visLife[i] += ((isAlive ? 1 : 0) - visLife[i]) * k;
+            visN[i] += ((isAlive ? n : visN[i] * 0.25) - visN[i]) * k;
             if (isAlive) {
               alive += 1;
-              const t = n / 8;
-              color.setHSL(0.52 - t * 0.42, 0.85, 0.42 + t * 0.18);
+              aliveColor(n, targetColor);
+              targetColor.lerp(bornColor, Math.max(0, 1 - visLife[i]) * 0.75);
             } else {
-              color.setRGB(0.05, 0.07, 0.1);
+              targetColor.copy(deadColor);
+              targetColor.lerp(dieColor, visLife[i] * 0.82);
             }
+            visR[i] += (targetColor.r - visR[i]) * colorK;
+            visG[i] += (targetColor.g - visG[i]) * colorK;
+            visB[i] += (targetColor.b - visB[i]) * colorK;
+            const u = ease(Math.min(1, Math.max(0, visLife[i])));
+            const h = 0.05 + u * (0.42 + visN[i] * 0.32);
+            const s = 0.001 + u * 0.999;
+            dummy.position.set(x * CELL + CELL / 2, h / 2, y * CELL + CELL / 2);
+            dummy.scale.set(s, Math.max(h, 0.02), s);
+            dummy.updateMatrix();
+            mesh.setMatrixAt(i, dummy.matrix);
+            color.setRGB(visR[i], visG[i], visB[i]);
             mesh.setColorAt(i, color);
           }
         }
@@ -574,7 +601,7 @@
         const cell = cellFromEvent(event);
         if (!cell) return;
         grid[idx(cell.x, cell.y)] = paintValue;
-        updateInstances();
+        updateInstances(0, true);
       }
 
       renderer.domElement.addEventListener("pointerdown", (event) => {
@@ -586,7 +613,7 @@
         const i = idx(cell.x, cell.y);
         paintValue = grid[i] ? 0 : 1;
         grid[i] = paintValue;
-        updateInstances();
+        updateInstances(0, true);
       });
       window.addEventListener("pointermove", (event) => {
         if (!painting) return;
@@ -605,21 +632,19 @@
       document.getElementById("step").addEventListener("click", () => {
         if (reverse) stepBack();
         else stepForward();
-        updateInstances();
+        updateInstances(0, false);
       });
       document.getElementById("random").addEventListener("click", () => {
         seedSelect.value = "random";
         plant("random");
-        updateInstances();
       });
       document.getElementById("clear").addEventListener("click", () => {
         resetRun();
         frameLiveCells();
-        updateInstances();
+        updateInstances(0, true);
       });
       seedSelect.addEventListener("change", () => {
         plant(seedSelect.value);
-        updateInstances();
       });
       speedInput.addEventListener("input", () => {
         gensPerSec = Number(speedInput.value);
@@ -643,13 +668,12 @@
 
       const clock = new THREE.Clock();
       plant(seedSelect.value);
-      updateInstances();
 
       function tick() {
         const dt = clock.getDelta();
         if (running) {
           accum += dt * gensPerSec;
-          const steps = Math.min(8, Math.floor(accum));
+          const steps = Math.min(4, Math.floor(accum));
           accum -= steps;
           for (let i = 0; i < steps; i++) {
             if (reverse) {
@@ -658,8 +682,8 @@
               stepForward();
             }
           }
-          if (steps > 0) updateInstances();
         }
+        updateInstances(dt, false);
         rim.position.x = BOARD_W * (0.5 + 0.22 * Math.sin(performance.now() * 0.0004));
         controls.update();
         renderer.render(scene, camera);
