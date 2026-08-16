@@ -513,8 +513,8 @@
         }
         const cx = ((minX + maxX + 1) / 2) * CELL;
         const cz = ((minY + maxY + 1) / 2) * CELL;
-        const span = Math.max(maxX - minX + 1, maxY - minY + 1, 8) * CELL;
-        const dist = Math.min(48, Math.max(14, span * 1.45));
+        const span = Math.max(maxX - minX + 1, maxY - minY + 1, 6) * CELL;
+        const dist = Math.min(48, Math.max(12, span * 1.4));
         controls.target.set(cx, 0.4, cz);
         camera.position.set(cx + dist * 0.42, dist * 0.92, cz + dist * 0.58);
       }
