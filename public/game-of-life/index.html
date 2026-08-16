@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Game of Life</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #05070c;
+        color: #e2e8f0;
+      }
+      canvas {
+        display: block;
+      }
+      .hud {
+        position: fixed;
+        inset: 1rem auto auto 1rem;
+        z-index: 2;
+        width: min(22rem, calc(100vw - 2rem));
+        padding: 1rem 1.1rem 1.05rem;
+        border: 1px solid #243044;
+        border-radius: 14px;
+        background: rgba(8, 12, 20, 0.82);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(10px);
+      }
+      h1 {
+        margin: 0 0 0.15rem;
+        font-size: 1.15rem;
+        letter-spacing: 0.02em;
+      }
+      .lede {
+        margin: 0 0 0.9rem;
+        color: #94a3b8;
+        font-size: 0.82rem;
+        line-height: 1.4;
+      }
+      .stats {
+        display: flex;
+        gap: 0.7rem;
+        margin: 0 0 0.85rem;
+        font-variant-numeric: tabular-nums;
+        font-size: 0.78rem;
+        color: #cbd5e1;
+      }
+      .stats span {
+        color: #7dd3fc;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin-bottom: 0.7rem;
+      }
+      button {
+        appearance: none;
+        border: 1px solid #334155;
+        background: #111827;
+        color: #e2e8f0;
+        border-radius: 8px;
+        padding: 0.38rem 0.65rem;
+        font: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: #7dd3fc;
+      }
+      button.active {
+        background: #164e63;
+        border-color: #22d3ee;
+      }
+      label.control {
+        display: grid;
+        grid-template-columns: 4.2rem 1fr 2.6rem;
+        align-items: center;
+        gap: 0.55rem;
+        margin-bottom: 0.65rem;
+        font-size: 0.8rem;
+        color: #cbd5e1;
+      }
+      input[type="range"] {
+        width: 100%;
+        accent-color: #22d3ee;
+      }
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin: 0.15rem 0 0.75rem;
+        font-size: 0.8rem;
+        color: #cbd5e1;
+      }
+      .toggle input {
+        width: 1rem;
+        height: 1rem;
+        accent-color: #f59e0b;
+      }
+      .hint {
+        margin: 0;
+        color: #64748b;
+        font-size: 0.75rem;
+        line-height: 1.4;
+      }
+      a {
+        color: #7dd3fc;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hud">
+      <h1>Game of Life</h1>
+      <p class="lede">
+        Conway’s cellular automaton on a wrapping lattice. Reverse replays the
+        recorded history.
+      </p>
+      <div class="stats">
+        <div>Gen <span id="gen">0</span></div>
+        <div>Alive <span id="alive">0</span></div>
+        <div>History <span id="hist">0</span></div>
+      </div>
+      <div class="row">
+        <button id="play" class="active" type="button">Pause</button>
+        <button id="step" type="button">Step</button>
+        <button id="random" type="button">Randomize</button>
+        <button id="clear" type="button">Clear</button>
+      </div>
+      <label class="control">
+        Speed
+        <input id="speed" type="range" min="1" max="60" value="10" />
+        <span id="speed-val">10/s</span>
+      </label>
+      <label class="toggle">
+        <input id="reverse" type="checkbox" />
+        Reverse (replay history)
+      </label>
+      <p class="hint">
+        Drag to orbit. Click or paint cells. Space pauses.
+        <a href="/">All projects</a>
+      </p>
+    </div>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      const COLS = 72;
+      const ROWS = 72;
+      const CELL = 1.12;
+      const MAX_HISTORY = 2400;
+      const SIZE = COLS * ROWS;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x05070c);
+      scene.fog = new THREE.Fog(0x05070c, 70, 160);
+
+      const camera = new THREE.PerspectiveCamera(
+        42,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        400
+      );
+      camera.position.set(38, 62, 48);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      document.body.appendChild(renderer.domElement);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.target.set((COLS * CELL) / 2, 0, (ROWS * CELL) / 2);
+      controls.maxPolarAngle = Math.PI * 0.48;
+      controls.minDistance = 18;
+      controls.maxDistance = 140;
+
+      scene.add(new THREE.AmbientLight(0x6b7c99, 0.55));
+      const hemi = new THREE.HemisphereLight(0x9bd4ff, 0x1a1020, 0.55);
+      scene.add(hemi);
+      const key = new THREE.DirectionalLight(0xe0f2fe, 1.15);
+      key.position.set(40, 70, 18);
+      scene.add(key);
+      const rim = new THREE.PointLight(0x22d3ee, 18, 120, 2);
+      rim.position.set(COLS * CELL * 0.2, 18, ROWS * CELL * 0.2);
+      scene.add(rim);
+
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(COLS * CELL + 8, ROWS * CELL + 8),
+        new THREE.MeshStandardMaterial({
+          color: 0x0b1220,
+          metalness: 0.15,
+          roughness: 0.9,
+        })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set((COLS * CELL) / 2, -0.08, (ROWS * CELL) / 2);
+      scene.add(floor);
+
+      const gridHelper = new THREE.GridHelper(
+        Math.max(COLS, ROWS) * CELL,
+        Math.max(COLS, ROWS),
+        0x1e293b,
+        0x132033
+      );
+      gridHelper.position.set((COLS * CELL) / 2, 0.01, (ROWS * CELL) / 2);
+      scene.add(gridHelper);
+
+      const geometry = new THREE.BoxGeometry(0.92, 1, 0.92);
+      const material = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        metalness: 0.18,
+        roughness: 0.38,
+        emissive: 0x000000,
+        emissiveIntensity: 1,
+      });
+      const mesh = new THREE.InstancedMesh(geometry, material, SIZE);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.instanceColor = new THREE.InstancedBufferAttribute(
+        new Float32Array(SIZE * 3),
+        3
+      );
+      scene.add(mesh);
+
+      const dummy = new THREE.Object3D();
+      const color = new THREE.Color();
+
+      let grid = new Uint8Array(SIZE);
+      let next = new Uint8Array(SIZE);
+      const history = [];
+      let generation = 0;
+      let running = true;
+      let reverse = false;
+      let gensPerSec = 10;
+      let accum = 0;
+      let painting = false;
+      let paintValue = 1;
+
+      const genEl = document.getElementById("gen");
+      const aliveEl = document.getElementById("alive");
+      const histEl = document.getElementById("hist");
+      const playBtn = document.getElementById("play");
+      const speedInput = document.getElementById("speed");
+      const speedVal = document.getElementById("speed-val");
+      const reverseInput = document.getElementById("reverse");
+
+      function idx(x, y) {
+        return ((y + ROWS) % ROWS) * COLS + ((x + COLS) % COLS);
+      }
+
+      function neighbors(x, y) {
+        let n = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            n += grid[idx(x + dx, y + dy)];
+          }
+        }
+        return n;
+      }
+
+      function snapshot() {
+        history.push(grid.slice());
+        if (history.length > MAX_HISTORY) history.shift();
+      }
+
+      function stepForward() {
+        snapshot();
+        for (let y = 0; y < ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            const i = y * COLS + x;
+            const n = neighbors(x, y);
+            const alive = grid[i] === 1;
+            next[i] = alive ? (n === 2 || n === 3 ? 1 : 0) : n === 3 ? 1 : 0;
+          }
+        }
+        const tmp = grid;
+        grid = next;
+        next = tmp;
+        generation += 1;
+      }
+
+      function stepBack() {
+        if (history.length === 0) return false;
+        grid.set(history.pop());
+        generation = Math.max(0, generation - 1);
+        return true;
+      }
+
+      function randomize() {
+        history.length = 0;
+        generation = 0;
+        for (let i = 0; i < SIZE; i++) grid[i] = Math.random() < 0.28 ? 1 : 0;
+        stampGlider(8, 8);
+        stampGlider(40, 20);
+        stampAcorn(52, 48);
+      }
+
+      function clearGrid() {
+        history.length = 0;
+        generation = 0;
+        grid.fill(0);
+      }
+
+      function stampGlider(x, y) {
+        const cells = [
+          [1, 0],
+          [2, 1],
+          [0, 2],
+          [1, 2],
+          [2, 2],
+        ];
+        for (const [dx, dy] of cells) grid[idx(x + dx, y + dy)] = 1;
+      }
+
+      function stampAcorn(x, y) {
+        const cells = [
+          [1, 0],
+          [3, 1],
+          [0, 2],
+          [1, 2],
+          [4, 2],
+          [5, 2],
+          [6, 2],
+        ];
+        for (const [dx, dy] of cells) grid[idx(x + dx, y + dy)] = 1;
+      }
+
+      function countAlive() {
+        let n = 0;
+        for (let i = 0; i < SIZE; i++) n += grid[i];
+        return n;
+      }
+
+      function updateInstances() {
+        let alive = 0;
+        for (let y = 0; y < ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            const i = y * COLS + x;
+            const isAlive = grid[i] === 1;
+            const n = isAlive ? neighbors(x, y) : 0;
+            const h = isAlive ? 0.35 + n * 0.28 : 0.02;
+            dummy.position.set(x * CELL + CELL / 2, h / 2, y * CELL + CELL / 2);
+            dummy.scale.set(isAlive ? 1 : 0.001, isAlive ? h : 0.001, isAlive ? 1 : 0.001);
+            dummy.updateMatrix();
+            mesh.setMatrixAt(i, dummy.matrix);
+            if (isAlive) {
+              alive += 1;
+              const t = n / 8;
+              color.setHSL(0.52 - t * 0.42, 0.85, 0.42 + t * 0.18);
+            } else {
+              color.setRGB(0.05, 0.07, 0.1);
+            }
+            mesh.setColorAt(i, color);
+          }
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.instanceColor.needsUpdate = true;
+        genEl.textContent = String(generation);
+        aliveEl.textContent = String(alive);
+        histEl.textContent = String(history.length);
+      }
+
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+      function cellFromEvent(event) {
+        pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+        pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hit = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(plane, hit)) return null;
+        const x = Math.floor(hit.x / CELL);
+        const y = Math.floor(hit.z / CELL);
+        if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return null;
+        return { x, y };
+      }
+
+      function paintAt(event) {
+        const cell = cellFromEvent(event);
+        if (!cell) return;
+        grid[idx(cell.x, cell.y)] = paintValue;
+        updateInstances();
+      }
+
+      renderer.domElement.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        const cell = cellFromEvent(event);
+        if (!cell) return;
+        painting = true;
+        controls.enabled = false;
+        const i = idx(cell.x, cell.y);
+        paintValue = grid[i] ? 0 : 1;
+        grid[i] = paintValue;
+        updateInstances();
+      });
+      window.addEventListener("pointermove", (event) => {
+        if (!painting) return;
+        paintAt(event);
+      });
+      window.addEventListener("pointerup", () => {
+        painting = false;
+        controls.enabled = true;
+      });
+
+      playBtn.addEventListener("click", () => {
+        running = !running;
+        playBtn.textContent = running ? "Pause" : "Play";
+        playBtn.classList.toggle("active", running);
+      });
+      document.getElementById("step").addEventListener("click", () => {
+        if (reverse) stepBack();
+        else stepForward();
+        updateInstances();
+      });
+      document.getElementById("random").addEventListener("click", () => {
+        randomize();
+        updateInstances();
+      });
+      document.getElementById("clear").addEventListener("click", () => {
+        clearGrid();
+        updateInstances();
+      });
+      speedInput.addEventListener("input", () => {
+        gensPerSec = Number(speedInput.value);
+        speedVal.textContent = `${gensPerSec}/s`;
+      });
+      reverseInput.addEventListener("change", () => {
+        reverse = reverseInput.checked;
+      });
+      window.addEventListener("keydown", (event) => {
+        if (event.code === "Space") {
+          event.preventDefault();
+          playBtn.click();
+        }
+      });
+
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      const clock = new THREE.Clock();
+      randomize();
+      updateInstances();
+
+      function tick() {
+        const dt = clock.getDelta();
+        if (running) {
+          accum += dt * gensPerSec;
+          const steps = Math.min(8, Math.floor(accum));
+          accum -= steps;
+          for (let i = 0; i < steps; i++) {
+            if (reverse) {
+              if (!stepBack()) break;
+            } else {
+              stepForward();
+            }
+          }
+          if (steps > 0) updateInstances();
+        }
+        rim.position.x =
+          COLS * CELL * (0.5 + 0.28 * Math.sin(performance.now() * 0.0004));
+        controls.update();
+        renderer.render(scene, camera);
+        requestAnimationFrame(tick);
+      }
+      tick();
+    </script>
+  </body>
+</html>
