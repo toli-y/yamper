@@ -29,8 +29,8 @@
         margin: 0;
         height: 100%;
         overflow: hidden;
-        background: #050308;
-        color: var(--ink);
+        background: #000;
+        color: #fcfcfc;
         touch-action: none;
       }
       canvas {
@@ -38,67 +38,39 @@
       }
       .hud {
         position: fixed;
-        inset: 0.7rem auto auto 0.7rem;
+        inset: auto 0 0 0;
         z-index: 3;
-        width: min(22rem, calc(100vw - 1.4rem));
-        padding: 0.85rem 1rem 0.9rem;
-        border: 1px solid #243044;
-        border-radius: 14px;
-        background: var(--panel);
-        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-        backdrop-filter: blur(10px);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.45rem 1.2rem;
+        padding: 0.45rem 0.8rem 0.55rem;
+        background: #000;
+        border-top: 2px solid #fcfcfc;
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        font-size: clamp(0.7rem, 2.1vw, 0.95rem);
+        letter-spacing: 0.12em;
         pointer-events: none;
       }
-      h1 {
-        margin: 0 0 0.12rem;
-        font-size: 1.12rem;
-        letter-spacing: 0.04em;
-      }
-      .lede {
-        margin: 0 0 0.75rem;
-        color: var(--muted);
-        font-size: 0.78rem;
-        line-height: 1.4;
-      }
-      .stats {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 0.35rem;
+      .hud .stat {
         font-variant-numeric: tabular-nums;
-        font-size: 0.72rem;
-        color: #cbd5e1;
       }
-      .stat {
-        border: 1px solid #1f2a3c;
-        border-radius: 8px;
-        padding: 0.35rem 0.4rem 0.4rem;
-        background: rgba(15, 23, 42, 0.55);
-      }
-      .stat b {
-        display: block;
-        color: #64748b;
-        font-size: 0.62rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-      .stat span {
-        color: var(--cyan);
+      .hud b {
+        color: #f8d020;
         font-weight: 700;
       }
       .hint {
-        margin: 0.7rem 0 0;
-        color: #64748b;
+        margin: 0;
+        color: #a0a0a0;
+        letter-spacing: 0.06em;
         font-size: 0.72rem;
-        line-height: 1.4;
       }
       .hint kbd {
         display: inline-block;
-        padding: 0 0.28rem;
-        border: 1px solid #334155;
-        border-radius: 4px;
-        background: #111827;
-        color: #cbd5e1;
+        padding: 0 0.22rem;
+        border: 1px solid #666;
+        color: #fcfcfc;
         font: inherit;
         font-size: 0.68rem;
       }
@@ -154,7 +126,7 @@
       }
       .touch {
         position: fixed;
-        inset: auto 0 0.55rem 0;
+        inset: auto 0 3.1rem 0;
         z-index: 4;
         display: none;
         justify-content: space-between;
@@ -188,7 +160,7 @@
       }
       .touch .digs {
         align-content: end;
-        grid-template-columns: 4.2rem 4.2rem;
+        grid-template-columns: 5.2rem;
       }
       .touch button {
         width: 100%;
@@ -212,46 +184,44 @@
   </head>
   <body>
     <aside class="hud">
-      <h1>Lode Runner</h1>
-      <p class="lede">
-        Hudson-style treasury raid. Collect every chest, then climb out.
-        More stages can drop into the list below without rewriting the engine.
-      </p>
-      <div class="stats">
-        <div class="stat"><b>Score</b><span id="score">0</span></div>
-        <div class="stat"><b>Men</b><span id="lives">5</span></div>
-        <div class="stat"><b>Stage</b><span id="stage">01</span></div>
-        <div class="stat"><b>Gold</b><span id="gold">0</span></div>
-      </div>
+      <span class="stat">SCORE-<b id="score">000000</b></span>
+      <span class="stat">MEN-<b id="lives">05</b></span>
+      <span class="stat">STAGE-<b id="stage">01</b></span>
+      <span class="stat">GOLD-<b id="gold">0/0</b></span>
       <p class="hint">
-        <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> move
-        · <kbd>Z</kbd>/<kbd>X</kbd> dig
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move
+        · <kbd>Space</kbd> dig
         · <kbd>R</kbd> retry
         · <a href="/">All projects</a>
       </p>
     </aside>
     <div class="banner show" id="banner">
-      <h2>Bungeling Treasury</h2>
+      <h2>LODE RUNNER</h2>
       <p id="banner-copy">
-        Stage 1 of the Nintendo Lode Runner raid. Steal the gold, trap the
-        guards in pits, and climb the hidden ladder when the last chest is gone.
+        Stage 1. Collect every gold pile, trap the magenta guards, then climb
+        the hidden ladder. WASD to move. Space digs a pit in the way you face.
       </p>
-      <button type="button" id="banner-btn">Enter the treasury</button>
+      <button type="button" id="banner-btn">PRESS SPACE</button>
     </div>
     <div class="touch" aria-hidden="true">
       <div class="pad">
-        <button type="button" data-dir="up">↑</button>
-        <button type="button" data-dir="left">←</button>
-        <button type="button" data-dir="right">→</button>
-        <button type="button" data-dir="down">↓</button>
+        <button type="button" data-dir="up">W</button>
+        <button type="button" data-dir="left">A</button>
+        <button type="button" data-dir="right">D</button>
+        <button type="button" data-dir="down">S</button>
       </div>
       <div class="digs">
-        <button type="button" data-dig="-1">Dig L</button>
-        <button type="button" data-dig="1">Dig R</button>
+        <button type="button" data-dig="face">DIG</button>
       </div>
     </div>
     <script type="module">
       import * as THREE from "three";
+      import { makePlayer } from "./_models/player.js";
+      import { makeGuard } from "./_models/guard.js";
+      import { makeBrick, makeSolid, makeTrap, makePit } from "./_models/tiles.js";
+      import { makeLadder } from "./_models/ladder.js";
+      import { makeRope } from "./_models/rope.js";
+      import { makeGold } from "./_models/gold.js";
 
       /**
        * Stage maps are equal-length strings, one row each.
@@ -313,76 +283,18 @@
       document.body.appendChild(renderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x07040a);
-      scene.fog = new THREE.Fog(0x07040a, 18, 42);
+      scene.background = new THREE.Color(0x000000);
 
       const camera = new THREE.OrthographicCamera(-8, 8, 8, -8, 0.1, 80);
       const clock = new THREE.Clock();
 
-      scene.add(new THREE.AmbientLight(0x6a5a78, 0.55));
-      const sun = new THREE.DirectionalLight(0xffd8b0, 1.15);
-      sun.position.set(6, 14, 10);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.62));
+      const sun = new THREE.DirectionalLight(0xffffff, 1.05);
+      sun.position.set(4, 10, 14);
       scene.add(sun);
-      const fill = new THREE.DirectionalLight(0x4466aa, 0.35);
-      fill.position.set(-8, 4, 6);
+      const fill = new THREE.DirectionalLight(0xa8c8ff, 0.28);
+      fill.position.set(-8, 3, 8);
       scene.add(fill);
-
-      const brickTex = makeBrickTexture(0xc44a28, 0x6e2414);
-      const solidTex = makeBrickTexture(0x5a4638, 0x2a2018);
-      const trapTex = makeBrickTexture(0xc44a28, 0x6e2414);
-      const mats = {
-        brick: new THREE.MeshStandardMaterial({
-          map: brickTex,
-          roughness: 0.72,
-          metalness: 0.05,
-        }),
-        solid: new THREE.MeshStandardMaterial({
-          map: solidTex,
-          roughness: 0.55,
-          metalness: 0.18,
-        }),
-        trap: new THREE.MeshStandardMaterial({
-          map: trapTex,
-          roughness: 0.72,
-          metalness: 0.05,
-        }),
-        ladder: new THREE.MeshStandardMaterial({
-          color: 0xd6dee8,
-          roughness: 0.35,
-          metalness: 0.45,
-        }),
-        rope: new THREE.MeshStandardMaterial({
-          color: 0xf0e6c8,
-          roughness: 0.4,
-          metalness: 0.25,
-        }),
-        gold: new THREE.MeshStandardMaterial({
-          color: 0xf4d35e,
-          emissive: 0x8a5a10,
-          emissiveIntensity: 0.55,
-          roughness: 0.28,
-          metalness: 0.7,
-        }),
-        pit: new THREE.MeshStandardMaterial({
-          color: 0x14080c,
-          roughness: 1,
-          metalness: 0,
-        }),
-        hidden: new THREE.MeshStandardMaterial({
-          color: 0x9be7a8,
-          roughness: 0.35,
-          metalness: 0.4,
-        }),
-      };
-
-      const geo = {
-        brick: new THREE.BoxGeometry(0.96, 0.9, 0.72),
-        pit: new THREE.BoxGeometry(0.9, 0.2, 0.6),
-        pole: new THREE.CylinderGeometry(0.045, 0.045, 0.92, 6),
-        rung: new THREE.BoxGeometry(0.42, 0.05, 0.05),
-        rope: new THREE.CylinderGeometry(0.04, 0.04, 0.96, 6),
-        gold: new THREE.BoxGeometry(0.42, 0.3, 0.28),
-      };
 
       let state = "title";
       let stageIndex = 0;
@@ -408,34 +320,9 @@
       let shake = 0;
       let bannerMode = "start";
       const particles = [];
-      const playerLight = new THREE.PointLight(0x88e8ff, 1.4, 9, 1.6);
-      scene.add(playerLight);
 
       const worldRoot = new THREE.Group();
       scene.add(worldRoot);
-
-      function makeBrickTexture(fill, mortar) {
-        const c = document.createElement("canvas");
-        c.width = 64;
-        c.height = 64;
-        const g = c.getContext("2d");
-        g.fillStyle = fill;
-        g.fillRect(0, 0, 64, 64);
-        g.fillStyle = mortar;
-        g.fillRect(0, 30, 64, 5);
-        g.fillRect(0, 0, 64, 3);
-        g.fillRect(0, 61, 64, 3);
-        g.fillRect(30, 0, 4, 32);
-        g.fillRect(0, 32, 4, 32);
-        g.fillRect(60, 32, 4, 32);
-        g.fillStyle = "rgba(255,220,180,0.16)";
-        g.fillRect(6, 6, 20, 10);
-        const t = new THREE.CanvasTexture(c);
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.magFilter = THREE.NearestFilter;
-        t.minFilter = THREE.NearestFilter;
-        return t;
-      }
 
       function worldPos(x, y, z = 0) {
         return new THREE.Vector3(x + 0.5, rows - y - 0.5, z);
@@ -499,98 +386,35 @@
         return false;
       }
 
-      function makeLadderMesh(hidden) {
-        const g = new THREE.Group();
-        const mat = hidden ? mats.hidden : mats.ladder;
-        const left = new THREE.Mesh(geo.pole, mat);
-        const right = new THREE.Mesh(geo.pole, mat);
-        left.position.set(-0.16, 0, 0.08);
-        right.position.set(0.16, 0, 0.08);
-        g.add(left, right);
-        for (let i = 0; i < 3; i++) {
-          const r = new THREE.Mesh(geo.rung, mat);
-          r.position.set(0, -0.28 + i * 0.28, 0.08);
-          g.add(r);
-        }
-        return g;
-      }
-
       function makeActor(kind) {
-        const g = new THREE.Group();
-        const player = kind === "player";
-        const cloth = new THREE.MeshStandardMaterial({
-          color: player ? 0x7ee0ff : 0xe23d4a,
-          roughness: 0.42,
-          metalness: 0.12,
-        });
-        const dark = new THREE.MeshStandardMaterial({
-          color: player ? 0x1b4d6b : 0x6a1220,
-          roughness: 0.5,
-        });
-        const skin = new THREE.MeshStandardMaterial({
-          color: 0xf0c7a2,
-          roughness: 0.65,
-        });
-        const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), cloth);
-        helmet.scale.set(1.05, 0.82, 1);
-        helmet.position.y = 0.42;
-        const visor = new THREE.Mesh(
-          new THREE.BoxGeometry(0.22, 0.07, 0.08),
-          new THREE.MeshStandardMaterial({
-            color: player ? 0x103040 : 0x1a0508,
-            roughness: 0.3,
-            metalness: 0.4,
-          })
-        );
-        visor.position.set(0, 0.42, 0.16);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), skin);
-        head.position.y = 0.28;
-        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.28, 0.2), cloth);
-        torso.position.y = 0.1;
-        const belt = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.06, 0.22), dark);
-        belt.position.y = -0.02;
-        const legs = new THREE.Group();
-        const l = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.12), dark);
-        const r = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.12), dark);
-        l.position.set(-0.08, -0.2, 0);
-        r.position.set(0.08, -0.2, 0);
-        legs.add(l, r);
-        g.add(helmet, visor, head, torso, belt, legs);
-        g.userData.legs = legs;
-        g.userData.left = l;
-        g.userData.right = r;
-        g.userData.kind = kind;
-        return g;
+        return kind === "player" ? makePlayer(THREE) : makeGuard(THREE);
       }
 
       function addTileVisual(x, y, ch) {
         const p = worldPos(x, y);
         const node = { brick: null, pit: null, extra: null };
         if (ch === "#" || ch === "X" || ch === "@") {
-          const mesh = new THREE.Mesh(
-            geo.brick,
-            ch === "@" ? mats.solid : ch === "X" ? mats.trap : mats.brick
-          );
+          const mesh =
+            ch === "@" ? makeSolid(THREE) : ch === "X" ? makeTrap(THREE) : makeBrick(THREE);
           mesh.position.copy(p);
           tileGroup.add(mesh);
           node.brick = mesh;
-          const pit = new THREE.Mesh(geo.pit, mats.pit);
-          pit.position.set(p.x, p.y - 0.38, p.z);
+          const pit = makePit(THREE);
+          pit.position.copy(p);
           pit.visible = false;
           tileGroup.add(pit);
           node.pit = pit;
         }
         if (ch === "H" || ch === "S") {
-          const ladder = makeLadderMesh(ch === "S");
+          const ladder = makeLadder(THREE, ch === "S");
           ladder.position.copy(p);
           ladder.visible = ch === "H";
           tileGroup.add(ladder);
           node.extra = ladder;
         }
         if (ch === "-") {
-          const rope = new THREE.Mesh(geo.rope, mats.rope);
-          rope.rotation.z = Math.PI / 2;
-          rope.position.set(p.x, p.y + 0.32, p.z + 0.05);
+          const rope = makeRope(THREE);
+          rope.position.copy(p);
           tileGroup.add(rope);
           node.extra = rope;
         }
@@ -639,13 +463,6 @@
         clearWorld();
         tileMeshes = Array.from({ length: rows }, () => Array(cols).fill(null));
 
-        const wall = new THREE.Mesh(
-          new THREE.PlaneGeometry(cols + 8, rows + 6),
-          new THREE.MeshStandardMaterial({ color: 0x120814, roughness: 1 })
-        );
-        wall.position.set(cols / 2, rows / 2, -1.6);
-        tileGroup.add(wall);
-
         runner = {
           x: 0,
           y: 0,
@@ -669,9 +486,8 @@
             addTileVisual(x, y, ch);
             if (ch === "$") {
               goldLeft += 1;
-              const mesh = new THREE.Mesh(geo.gold, mats.gold);
-              const p = worldPos(x, y, 0.12);
-              mesh.position.copy(p);
+              const mesh = makeGold(THREE);
+              mesh.position.copy(worldPos(x, y));
               tileGroup.add(mesh);
               golds.push({ x, y, mesh, taken: false, carrier: null });
               grid[y][x] = " ";
@@ -708,12 +524,6 @@
         goldTotal = goldLeft;
         actorGroup.add(runner.mesh);
         actorGroup.add(runner.laser);
-        const base = new THREE.Mesh(
-          new THREE.BoxGeometry(cols + 1.4, 0.5, 1.15),
-          new THREE.MeshStandardMaterial({ color: 0x3a2418, roughness: 0.82 })
-        );
-        base.position.set(cols / 2, -0.32, 0.05);
-        tileGroup.add(base);
         camX = runner.x;
         camY = rows - runner.y;
         syncActorMesh(runner, 0);
@@ -722,8 +532,8 @@
       }
 
       function updateHud() {
-        document.getElementById("score").textContent = String(score);
-        document.getElementById("lives").textContent = String(lives);
+        document.getElementById("score").textContent = String(score).padStart(6, "0");
+        document.getElementById("lives").textContent = String(lives).padStart(2, "0");
         document.getElementById("stage").textContent = String(STAGES[stageIndex].id).padStart(2, "0");
         const collected = golds.filter((g) => g.taken).length;
         document.getElementById("gold").textContent = `${collected}/${goldTotal}`;
@@ -769,10 +579,10 @@
       function wishFromInput() {
         let x = 0;
         let y = 0;
-        if (keys.has("arrowleft") || keys.has("a") || keys.has("j") || hold.left) x -= 1;
-        if (keys.has("arrowright") || keys.has("d") || keys.has("l") || hold.right) x += 1;
-        if (keys.has("arrowup") || keys.has("w") || keys.has("i") || hold.up) y -= 1;
-        if (keys.has("arrowdown") || keys.has("s") || keys.has("k") || hold.down) y += 1;
+        if (keys.has("a") || keys.has("arrowleft") || hold.left) x -= 1;
+        if (keys.has("d") || keys.has("arrowright") || hold.right) x += 1;
+        if (keys.has("w") || keys.has("arrowup") || hold.up) y -= 1;
+        if (keys.has("s") || keys.has("arrowdown") || hold.down) y += 1;
         return { x, y };
       }
 
@@ -883,7 +693,7 @@
         gold.x = roundish(actor.x);
         gold.y = roundish(actor.y);
         gold.mesh.visible = true;
-        gold.mesh.position.copy(worldPos(gold.x, gold.y, 0.12));
+        gold.mesh.position.copy(worldPos(gold.x, gold.y));
         goldLeft = golds.filter((g) => !g.taken).length;
         updateHud();
       }
@@ -1269,27 +1079,31 @@
 
       function syncActorMesh(actor, t) {
         const p = worldPos(actor.x, actor.y);
-        const sink = actor.stuck ? 0.28 : 0;
-        actor.mesh.position.set(p.x, p.y - 0.18 - sink, 0.22);
+        const sink = actor.stuck ? 0.22 : 0;
+        actor.mesh.position.set(p.x, p.y - 0.48 - sink, 0.2);
         actor.mesh.scale.x = actor.facing < 0 ? -1 : 1;
-        const legs = actor.mesh.userData.legs;
-        if (!legs) return;
-        const moving = !actor.stuck && (actor.falling || !aligned(actor.x) || !aligned(actor.y));
-        const swing = moving ? Math.sin(t * 14) * 0.22 : 0;
-        actor.mesh.userData.left.rotation.x = swing;
-        actor.mesh.userData.right.rotation.x = -swing;
-        if (actor.carrying) {
-          actor.mesh.scale.y = 1.05;
-        } else {
-          actor.mesh.scale.y = 1;
+        if (actor.mesh.userData.goldBag) {
+          actor.mesh.userData.goldBag.visible = Boolean(actor.carrying);
         }
+        let pose = "stand";
+        if (actor.stuck) pose = "stuck";
+        else if (actor.digging > 0) pose = "dig";
+        else if (actor.falling) pose = "fall";
+        else {
+          const tx = roundish(actor.x);
+          const ty = roundish(actor.y);
+          if (isRope(tx, ty) && aligned(actor.y) && !isLadder(tx, ty)) pose = "hang";
+          else if (isLadder(tx, ty) && Math.abs(actor.y - ty) > 0.05) pose = "climb";
+          else if (Math.abs(actor.x - tx) > 0.05) pose = "walk";
+        }
+        if (actor.mesh.userData.animate) actor.mesh.userData.animate(pose, t, actor.facing);
       }
 
-      function updateCamera(dt) {
-        const aspect = innerWidth / innerHeight;
-        const tilePx = Math.min(innerWidth / 16.2, innerHeight / 15.4);
+      function updateCamera() {
+        const hud = 52;
+        const tilePx = Math.min(innerWidth / 16, (innerHeight - hud) / 13.2);
         const viewW = innerWidth / tilePx;
-        const viewH = innerHeight / tilePx;
+        const viewH = (innerHeight - hud) / tilePx;
         camera.left = -viewW / 2;
         camera.right = viewW / 2;
         camera.top = viewH / 2;
@@ -1297,31 +1111,34 @@
         camera.updateProjectionMatrix();
 
         const targetX = runner.x + 0.5;
-        const targetY = rows - runner.y - 0.2;
-        const marginX = viewW / 2 - 0.6;
-        const marginY = viewH / 2 - 0.6;
-        const minX = Math.min(marginX, cols / 2);
-        const maxX = Math.max(cols - marginX, minX);
-        const minY = Math.min(marginY, rows / 2);
-        const maxY = Math.max(rows - marginY, minY);
-        const wantX = THREE.MathUtils.clamp(targetX, minX, maxX);
-        const wantY = THREE.MathUtils.clamp(targetY, minY, maxY);
-        camX += (wantX - camX) * Math.min(1, 7 * dt);
-        camY += (wantY - camY) * Math.min(1, 7 * dt);
-        const jx = shake ? (Math.random() - 0.5) * shake * 2 : 0;
-        const jy = shake ? (Math.random() - 0.5) * shake * 2 : 0;
-        camera.position.set(camX + jx, camY + 3.2 + jy, 14);
+        const targetY = rows - runner.y - 0.35;
+        const marginX = Math.max(2.2, viewW / 2 - 2.4);
+        const marginY = Math.max(2.2, viewH / 2 - 2.2);
+        const minX = Math.min(viewW / 2, cols / 2);
+        const maxX = Math.max(cols - viewW / 2, minX);
+        const minY = Math.min(viewH / 2, rows / 2);
+        const maxY = Math.max(rows - viewH / 2, minY);
+        let wantX = camX;
+        let wantY = camY;
+        if (targetX > camX + marginX) wantX = targetX - marginX;
+        if (targetX < camX - marginX) wantX = targetX + marginX;
+        if (targetY > camY + marginY) wantY = targetY - marginY;
+        if (targetY < camY - marginY) wantY = targetY + marginY;
+        camX = THREE.MathUtils.clamp(wantX, minX, maxX);
+        camY = THREE.MathUtils.clamp(wantY, minY, maxY);
+        const jx = shake ? (Math.random() - 0.5) * shake * 1.2 : 0;
+        const jy = shake ? (Math.random() - 0.5) * shake * 1.2 : 0;
+        camera.position.set(camX + jx, camY + 1.15 + jy, 16);
         camera.lookAt(camX + jx, camY + jy, 0);
-        playerLight.position.set(worldPos(runner.x, runner.y).x, worldPos(runner.x, runner.y).y, 1.4);
-        shake = Math.max(0, shake - dt);
       }
 
       function animateGold(t) {
         for (const g of golds) {
-          if (g.taken) continue;
-          const p = worldPos(g.x, g.y, 0.12);
-          g.mesh.position.y = p.y + Math.sin(t * 3 + g.x) * 0.08;
-          g.mesh.rotation.y = t * 1.6;
+          if (g.taken || g.carrier) continue;
+          if (g.mesh.userData.bob) {
+            g.mesh.userData.bob.position.y = Math.sin(t * 3 + g.x) * 0.04;
+            g.mesh.userData.bob.rotation.y = Math.sin(t * 0.7 + g.x) * 0.08;
+          }
         }
       }
 
@@ -1338,7 +1155,8 @@
           syncActorMesh(runner, t);
           for (const g of guards) if (g.alive) syncActorMesh(g, t);
           animateGold(t);
-          updateCamera(dt);
+          updateCamera();
+          shake = Math.max(0, shake - dt);
         }
         renderer.render(scene, camera);
         requestAnimationFrame(tick);
@@ -1351,9 +1169,9 @@
             e.preventDefault();
           }
           keys.add(k);
-          if (!e.repeat) {
-            if (k === "z" || k === "u" || k === "q") digQueue = -1;
-            if (k === "x" || k === "o" || k === "e") digQueue = 1;
+          if (!e.repeat && k === " ") {
+            if (state !== "play") bannerBtn.click();
+            else digQueue = runner?.facing || 1;
           }
           if (k === "r" && (state === "play" || state === "dead" || state === "won")) {
             loadStage(stageIndex, true);
@@ -1404,7 +1222,7 @@
         document.querySelectorAll(".touch [data-dig]").forEach((btn) => {
           btn.addEventListener("pointerdown", (e) => {
             e.preventDefault();
-            digQueue = Number(btn.getAttribute("data-dig"));
+            digQueue = runner?.facing || 1;
           });
         });
       }
