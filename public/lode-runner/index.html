@@ -576,13 +576,31 @@
         }
       }
 
+      function bindKey(e) {
+        const c = e.code;
+        if (c === "KeyA" || c === "ArrowLeft") return "left";
+        if (c === "KeyD" || c === "ArrowRight") return "right";
+        if (c === "KeyW" || c === "ArrowUp") return "up";
+        if (c === "KeyS" || c === "ArrowDown") return "down";
+        if (c === "Space") return "space";
+        if (c === "KeyR") return "r";
+        if (c === "Enter") return "enter";
+        const k = (e.key || "").toLowerCase();
+        if (k === "a" || k === "arrowleft") return "left";
+        if (k === "d" || k === "arrowright") return "right";
+        if (k === "w" || k === "arrowup") return "up";
+        if (k === "s" || k === "arrowdown") return "down";
+        if (k === " " || k === "spacebar") return "space";
+        return k;
+      }
+
       function wishFromInput() {
         let x = 0;
         let y = 0;
-        if (keys.has("a") || keys.has("arrowleft") || hold.left) x -= 1;
-        if (keys.has("d") || keys.has("arrowright") || hold.right) x += 1;
-        if (keys.has("w") || keys.has("arrowup") || hold.up) y -= 1;
-        if (keys.has("s") || keys.has("arrowdown") || hold.down) y += 1;
+        if (keys.has("left") || hold.left) x -= 1;
+        if (keys.has("right") || hold.right) x += 1;
+        if (keys.has("up") || hold.up) y -= 1;
+        if (keys.has("down") || hold.down) y += 1;
         return { x, y };
       }
 
@@ -845,14 +863,32 @@
         const sy = roundish(g.y);
         const tx = roundish(runner.x);
         const ty = roundish(runner.y);
+        g.wish.x = 0;
+        g.wish.y = 0;
+        if (sx === tx && sy === ty) return;
+
+        // Same ledge: sprint at the runner (classic Lode Runner chase).
+        if (sy === ty && sx !== tx) {
+          const dir = Math.sign(tx - sx);
+          const nx = sx + dir;
+          if (!bodyBlocked(nx, sy)) {
+            g.wish.x = dir;
+            return;
+          }
+        }
+
         const path = bfs(sx, sy, tx, ty);
         if (path && path.length > 1) {
           g.wish.x = Math.sign(path[1][0] - sx);
           g.wish.y = Math.sign(path[1][1] - sy);
+          if (g.wish.x && g.wish.y) g.wish.x = 0;
           return;
         }
-        g.wish.x = Math.sign(tx - sx);
-        g.wish.y = Math.sign(ty - sy);
+
+        const dx = tx - sx;
+        const dy = ty - sy;
+        if (Math.abs(dy) >= Math.abs(dx) && dy !== 0) g.wish.y = Math.sign(dy);
+        else g.wish.x = Math.sign(dx);
       }
 
       function moveFall(actor, dt) {
@@ -968,11 +1004,11 @@
           return;
         }
         runner.laser.visible = false;
+        const wish = wishFromInput();
         if (!supported(runner)) {
           moveFall(runner, dt);
         } else {
           runner.falling = false;
-          const wish = wishFromInput();
           if (runner.stuck) {
             wish.y = 0;
           }
@@ -985,9 +1021,11 @@
           tryStep(runner, wish.x, wish.y, SPEED_PLAYER, dt);
         }
         tryPickupGold(runner);
+        // Only snap an axis that is not being driven. Snapping both every
+        // frame used to cancel WASD: one tick of motion is smaller than ALIGN.
         if (!runner.falling) {
-          if (aligned(runner.x)) runner.x = roundish(runner.x);
-          if (aligned(runner.y)) runner.y = roundish(runner.y);
+          if (!wish.x && aligned(runner.x)) runner.x = roundish(runner.x);
+          if (!wish.y && aligned(runner.y)) runner.y = roundish(runner.y);
         }
         if (digQueue) {
           startDig(digQueue);
@@ -1020,14 +1058,14 @@
           } else {
             g.falling = false;
             g.thinkT -= dt;
-            if (g.thinkT <= 0) {
+            if (g.thinkT <= 0 || (!g.wish.x && !g.wish.y)) {
               thinkGuard(g);
-              g.thinkT = 0.16;
+              g.thinkT = 0.08;
             }
             tryStep(g, g.wish.x, g.wish.y, SPEED_GUARD, dt);
             if (!g.falling) {
-              if (aligned(g.x)) g.x = roundish(g.x);
-              if (aligned(g.y)) g.y = roundish(g.y);
+              if (!g.wish.x && aligned(g.x)) g.x = roundish(g.x);
+              if (!g.wish.y && aligned(g.y)) g.y = roundish(g.y);
             }
             if (g.carrying) {
               if (Math.abs(g.wish.x) > 0) {
@@ -1164,12 +1202,12 @@
 
       function bind() {
         addEventListener("keydown", (e) => {
-          const k = e.key.toLowerCase();
-          if (["arrowleft", "arrowright", "arrowup", "arrowdown", " "].includes(k) || e.code === "Space" || k.length === 1) {
+          const k = bindKey(e);
+          if (k === "left" || k === "right" || k === "up" || k === "down" || k === "space") {
             e.preventDefault();
           }
           keys.add(k);
-          if (!e.repeat && (k === " " || e.code === "Space")) {
+          if (!e.repeat && k === "space") {
             if (state !== "play") bannerBtn.click();
             else digQueue = runner?.facing || 1;
           }
@@ -1180,7 +1218,7 @@
           }
           if (k === "enter") bannerBtn.click();
         });
-        addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
+        addEventListener("keyup", (e) => keys.delete(bindKey(e)));
         addEventListener("resize", () => {
           renderer.setSize(innerWidth, innerHeight);
         });
