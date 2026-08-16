@@ -51,6 +51,10 @@ Hub table row to add or update in `public/index.html`:
 
 Remove the "No projects yet." row when the first project is added.
 
+## Libraries
+
+Load JavaScript libraries from a CDN. Do not embed, vendor, or copy library source into the repo unless the user asks. Pin versions (import maps or versioned script URLs). Project-specific code stays in the project's HTML; third-party libraries come from the CDN.
+
 ## Three.js
 
 Load Three.js from jsDelivr with an import map. Pin **0.185.1** for both the core module and addons. Do not add a bundler, `package.json`, or build step for games.

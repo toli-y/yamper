@@ -2,7 +2,7 @@
 
 Public catalog of browser games at [https://yamper.anatoly-yevtushenko.workers.dev/](https://yamper.anatoly-yevtushenko.workers.dev/). Cloudflare deploys `main`. Agents use trunk-based development: each iteration lands on `main` so the site updates automatically.
 
-Each project is a **single-page HTML game** in its own folder under `public/`, drawn with **Three.js**. The hub page is a table of contents with a link to every project's landing page.
+Each project is a **single-page HTML game** in its own folder under `public/`, drawn with **Three.js**. JavaScript libraries load from a CDN; do not embed them. The hub page is a table of contents with a link to every project's landing page.
 
 ## Layout
 

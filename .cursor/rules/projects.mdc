@@ -38,6 +38,7 @@ When finishing work on a prompt:
 
 - Projects are mostly video games.
 - Use **Three.js** for visualization, effects, and drawing. Load it from a CDN with an import map. Pin `three@0.185.1` (same version for `three` and `three/addons/`). Do not use a bundler or npm for game pages.
+- Load JavaScript libraries from a CDN. Do not embed, vendor, or copy library source into the repo unless the user asks. Pin versions on the CDN (import maps or versioned script URLs).
 - Each game page is self-contained HTML opened directly in the browser. Inline CSS and a `<script type="module">`. No build step.
 - The hub `public/index.html` is a table of contents only. Do not turn it into a game.
 
