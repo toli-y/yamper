@@ -2,6 +2,8 @@
 
 Public catalog of browser games at [https://yamper.anatoly-yevtushenko.workers.dev/](https://yamper.anatoly-yevtushenko.workers.dev/). Cloudflare deploys `main`. Agents use trunk-based development: each iteration lands on `main` so the site updates automatically.
 
+Agent guidelines live in **[AGENTS.md](AGENTS.md)** only. Cursor, Claude, ChatGPT/Codex/Copilot, and Gemini are pointed at that file. Do not copy the playbook elsewhere.
+
 Each project is a **single-page HTML game** in its own folder under `public/`, drawn with **Three.js**. JavaScript libraries load from a CDN; do not embed them. The hub page is a table of contents with a link to every project's landing page.
 
 ## Layout
