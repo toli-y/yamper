@@ -224,9 +224,10 @@
     <aside class="hud">
       <h1>Clan Maze</h1>
       <p class="lede">
-        Four dens sit at the corners of a square maze. Leaders and deputies fetch
-        glowing prey and bring it home to raise warriors. Rival collisions cost 1 HP.
-        Medicine cats restore allies to 10.
+        Four dens sit at the corners of a square maze. Deputies lead battle patrols
+        more often than hunting patrols, and hunt isolated enemy warriors. Prey brought
+        home usually raises a warrior, with a 10% chance of a deputy and a 5% chance of
+        a medicine cat.
       </p>
       <div class="clans" id="clan-status"></div>
       <div class="row">
@@ -260,6 +261,8 @@
       const CAT_RADIUS = 0.52;
       const MAX_PREY = 5;
       const MAX_WARRIORS = 8;
+      const MAX_DEPUTIES = 4;
+      const MAX_MEDS = 3;
       const PICKUP_R2 = 0.62 ** 2;
 
       const CLANS = [
@@ -388,7 +391,7 @@
         prey: [],
         preySpawnIn: 1.4,
         preySeq: 1,
-        warriorSeq: 1,
+        spawnSeq: 1,
         walls: null,
         wallDummy: new THREE.Object3D(),
         t: 0,
@@ -787,6 +790,8 @@
           facing: 0,
           carrying: null,
           followDeputy: extra.followDeputy ?? false,
+          patrol: extra.patrol ?? (role === "deputy" ? (Math.random() < 0.72 ? "battle" : "hunt") : null),
+          patrolUntil: extra.patrolUntil ?? (role === "deputy" ? 5 + Math.random() * 7 : 0),
           mesh,
           label,
           labelEl,
@@ -885,24 +890,37 @@
         state.prey = state.prey.filter((p) => p !== prey);
       }
 
-      function spawnWarrior(den) {
-        const living = state.cats.filter(
-          (c) => c.clanId === den.id && c.role === "warrior" && !c.dead
-        );
-        if (living.length >= MAX_WARRIORS) return null;
+      function countLivingRole(den, role) {
+        return state.cats.filter((c) => c.clanId === den.id && c.role === role && !c.dead).length;
+      }
+
+      function spawnAtDen(den, role) {
+        const caps = { warrior: MAX_WARRIORS, deputy: MAX_DEPUTIES, medicine: MAX_MEDS };
+        const cap = caps[role] ?? MAX_WARRIORS;
+        if (countLivingRole(den, role) >= cap) return null;
         const cell = den.cells[Math.floor(Math.random() * den.cells.length)];
-        return createCat(den, "warrior", cell, {
-          id: `${den.id}-warrior-${state.warriorSeq++}`,
+        const extra = {
+          id: `${den.id}-${role}-${state.spawnSeq++}`,
           iframe: 0.9,
-          followDeputy: Math.random() < 0.55,
-        });
+        };
+        if (role === "warrior") extra.followDeputy = Math.random() < 0.55;
+        if (role === "deputy") extra.patrol = Math.random() < 0.72 ? "battle" : "hunt";
+        return createCat(den, role, cell, extra);
+      }
+
+      function spawnWarrior(den) {
+        return spawnAtDen(den, "warrior");
       }
 
       function deliverPrey(cat) {
         const prey = cat.carrying;
         if (!prey) return;
         removePrey(prey);
-        spawnWarrior(cat.den);
+        const roll = Math.random();
+        let role = "warrior";
+        if (roll < 0.1) role = "deputy";
+        else if (roll < 0.15) role = "medicine";
+        if (!spawnAtDen(cat.den, role)) spawnAtDen(cat.den, "warrior");
         cat.flash = -0.2;
         cat.path = [];
         cat.rethink = 0.15;
@@ -1014,6 +1032,29 @@
         setCatLabel(cat);
       }
 
+      function nearbyAllies(cat, radius = 5) {
+        return liveCats().filter(
+          (other) =>
+            other !== cat &&
+            other.clanId === cat.clanId &&
+            Math.abs(other.r - cat.r) + Math.abs(other.c - cat.c) <= radius
+        ).length;
+      }
+
+      function pickBattleTarget(hunter) {
+        const enemies = liveCats().filter((c) => c.clanId !== hunter.clanId);
+        if (!enemies.length) return null;
+        const warriors = enemies.filter((c) => c.role === "warrior");
+        const pool = warriors.length ? warriors : enemies;
+        pool.sort((a, b) => {
+          const isoA = nearbyAllies(a);
+          const isoB = nearbyAllies(b);
+          if (isoA !== isoB) return isoA - isoB;
+          return dist2(hunter, a) - dist2(hunter, b);
+        });
+        return pool[0];
+      }
+
       function pickGoal(cat) {
         const allies = liveCats().filter((c) => c.clanId === cat.clanId && c !== cat);
         const enemies = liveCats().filter((c) => c.clanId !== cat.clanId);
@@ -1037,15 +1078,36 @@
           return cat.den.cells[Math.floor(Math.random() * cat.den.cells.length)];
         }
 
-        if (cat.role === "leader" || cat.role === "deputy") {
-          if (cat.carrying) return cat.den.mid;
+        if (cat.carrying) return cat.den.mid;
+
+        if (cat.role === "deputy") {
+          if (cat.patrolUntil <= 0) {
+            cat.patrol = Math.random() < 0.72 ? "battle" : "hunt";
+            cat.patrolUntil = 6 + Math.random() * 8;
+          }
+          if (cat.patrol === "battle") {
+            const target = pickBattleTarget(cat);
+            if (target) return cellOf(target);
+          }
+          const prey = nearestPrey(cat);
+          if (prey) return { r: prey.r, c: prey.c };
+          const fallback = pickBattleTarget(cat);
+          if (fallback) return cellOf(fallback);
+        }
+
+        if (cat.role === "leader") {
           const prey = nearestPrey(cat);
           if (prey) return { r: prey.r, c: prey.c };
         }
 
         if (cat.role === "warrior") {
-          if (Math.random() < 0.22) cat.followDeputy = !cat.followDeputy;
-          const deputy = allies.find((c) => c.role === "deputy");
+          const deputies = allies.filter((c) => c.role === "deputy");
+          const battleDeputy = deputies.find((c) => c.patrol === "battle");
+          if (battleDeputy && Math.random() < 0.7) cat.followDeputy = true;
+          else if (Math.random() < 0.22) cat.followDeputy = !cat.followDeputy;
+          const deputy =
+            (cat.followDeputy && battleDeputy) ||
+            deputies.sort((a, b) => dist2(cat, a) - dist2(cat, b))[0];
           if (cat.followDeputy && deputy) {
             const manh = Math.abs(deputy.r - cat.r) + Math.abs(deputy.c - cat.c);
             if (manh <= 1) {
@@ -1143,18 +1205,22 @@
           const living = members.filter((c) => !c.dead);
           let meta = "wiped";
           if (!den?.eliminated) {
-            const bits = living
-              .filter((c) => c.role !== "warrior")
-              .map((c) => {
-                if (c.role === "leader") {
-                  return c.respawning
-                    ? `Leader respawn ${Math.ceil(c.respawnIn)}s (${c.lives})`
-                    : `Leader ${c.hp} ${c.lives}`;
-                }
-                if (c.role === "medicine") return `Med ${c.hp}`;
-                return `Deputy ${c.hp}`;
-              });
+            const bits = [];
+            const leaders = living.filter((c) => c.role === "leader");
+            const meds = living.filter((c) => c.role === "medicine");
+            const deputies = living.filter((c) => c.role === "deputy");
             const warriors = living.filter((c) => c.role === "warrior");
+            for (const c of leaders) {
+              bits.push(
+                c.respawning
+                  ? `Leader respawn ${Math.ceil(c.respawnIn)}s (${c.lives})`
+                  : `Leader ${c.hp} ${c.lives}`
+              );
+            }
+            if (meds.length === 1) bits.push(`Med ${meds[0].hp}`);
+            else if (meds.length > 1) bits.push(`Meds ${meds.length}`);
+            if (deputies.length === 1) bits.push(`Deputy ${deputies[0].hp}`);
+            else if (deputies.length > 1) bits.push(`Deputies ${deputies.length}`);
             if (warriors.length) bits.push(`Warriors ${warriors.length}`);
             meta = bits.join(" · ") || "wiped";
           }
@@ -1188,6 +1254,7 @@
         state.cats = [];
         state.prey = [];
         state.preySpawnIn = 1.4;
+        state.spawnSeq = 1;
         banner.classList.remove("show");
         state.over = false;
       }
@@ -1269,6 +1336,9 @@
               updateStatus();
             }
             continue;
+          }
+          if (cat.role === "deputy" && cat.patrolUntil > 0) {
+            cat.patrolUntil = Math.max(0, cat.patrolUntil - step);
           }
           moveCat(cat, step);
           tryPickup(cat);
