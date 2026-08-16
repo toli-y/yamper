@@ -292,13 +292,19 @@
       </p>
       <div class="mode-row">
         <button id="mode-watch" class="active" type="button">Watch</button>
-        <button id="mode-play" type="button">Play as warrior</button>
+        <button id="mode-play" type="button">Play</button>
       </div>
       <div class="clan-pick" id="clan-pick">
         <button type="button" data-clan="thunder" class="active">ThunderClan</button>
         <button type="button" data-clan="shadow">ShadowClan</button>
         <button type="button" data-clan="wind">WindClan</button>
         <button type="button" data-clan="river">RiverClan</button>
+      </div>
+      <div class="clan-pick" id="role-pick">
+        <button type="button" data-role="warrior" class="active">Warrior</button>
+        <button type="button" data-role="medicine">Medicine cat</button>
+        <button type="button" data-role="deputy">Deputy</button>
+        <button type="button" data-role="leader">Leader</button>
       </div>
       <div class="clans" id="clan-status"></div>
       <div class="row">
@@ -311,12 +317,12 @@
         <span id="speed-val">1.0×</span>
       </label>
       <p class="hint">
-        Drag to orbit, scroll to zoom. Arrows move your warrior.
+        Drag to orbit, scroll to zoom. Arrows move your cat.
         <a href="/">All projects</a>
       </p>
     </aside>
     <div class="banner" id="banner"></div>
-    <div class="dpad" id="dpad" aria-label="Move warrior">
+    <div class="dpad" id="dpad" aria-label="Move your cat">
       <button class="up" type="button" data-dir="up">▲</button>
       <button class="left" type="button" data-dir="left">◀</button>
       <button class="right" type="button" data-dir="right">▶</button>
@@ -519,6 +525,7 @@
         over: false,
         playMode: false,
         playClan: "thunder",
+        playRole: "warrior",
         player: null,
         held: { up: false, down: false, left: false, right: false },
         lastDir: null,
@@ -826,11 +833,16 @@
       }
 
       function roleLabel(cat) {
-        if (cat.player) return `You · Warrior ${cat.clanName}`;
-        if (cat.role === "medicine") return `Medicine cat ${cat.clanName}`;
-        if (cat.role === "leader") return `Leader ${cat.clanName}`;
-        if (cat.role === "warrior") return `Warrior ${cat.clanName}`;
-        return `Deputy ${cat.clanName}`;
+        const roleName =
+          cat.role === "medicine"
+            ? "Medicine cat"
+            : cat.role === "leader"
+              ? "Leader"
+              : cat.role === "deputy"
+                ? "Deputy"
+                : "Warrior";
+        if (cat.player) return `You · ${roleName} ${cat.clanName}`;
+        return `${roleName} ${cat.clanName}`;
       }
 
       function setCatLabel(cat) {
@@ -1178,33 +1190,55 @@
           ];
           roles.forEach((role, i) => createCat(den, role, spots[i]));
         }
-        spawnPlayerWarrior();
+        spawnPlayerCat();
       }
 
-      function spawnPlayerWarrior() {
+      function markAsPlayer(cat) {
+        cat.player = true;
+        cat.followDeputy = false;
+        cat.path = [];
+        cat.playerTarget = null;
+        cat.labelEl.classList.add("you");
+        if (!cat.mesh.userData.playerMark) {
+          const mark = new THREE.Mesh(
+            new THREE.TorusGeometry(0.4, 0.035, 8, 22),
+            new THREE.MeshStandardMaterial({
+              color: 0xf8fafc,
+              emissive: 0xfde68a,
+              emissiveIntensity: 0.55,
+            })
+          );
+          mark.rotation.x = Math.PI / 2;
+          mark.position.y = 0.05;
+          cat.mesh.add(mark);
+          cat.mesh.userData.playerMark = mark;
+        }
+        setCatLabel(cat);
+        state.player = cat;
+      }
+
+      function spawnPlayerCat() {
         state.player = null;
         if (!state.playMode) return;
         const den = state.dens.find((d) => d.id === state.playClan);
         if (!den || den.eliminated) return;
-        const cat = createCat(den, "warrior", den.mid, {
+        const role = state.playRole;
+        if (role !== "warrior") {
+          const existing = state.cats.find(
+            (c) => c.clanId === den.id && c.role === role && !c.dead
+          );
+          if (existing) {
+            markAsPlayer(existing);
+            return;
+          }
+        }
+        const cat = createCat(den, role, den.mid, {
           id: `${den.id}-player`,
           iframe: 1.2,
           followDeputy: false,
           player: true,
         });
-        cat.labelEl.classList.add("you");
-        const mark = new THREE.Mesh(
-          new THREE.TorusGeometry(0.4, 0.035, 8, 22),
-          new THREE.MeshStandardMaterial({
-            color: 0xf8fafc,
-            emissive: 0xfde68a,
-            emissiveIntensity: 0.55,
-          })
-        );
-        mark.rotation.x = Math.PI / 2;
-        mark.position.y = 0.05;
-        cat.mesh.add(mark);
-        state.player = cat;
+        markAsPlayer(cat);
       }
 
       function mapPrey() {
@@ -1396,6 +1430,7 @@
         cat.hp = START_HP;
         cat.iframe = 1.6;
         cat.den.respawnIn = 0;
+        cat.playerTarget = null;
         placeCat(cat, cat.den.mid);
         hideCat(cat, false);
         setCatLabel(cat);
@@ -1408,19 +1443,19 @@
         cat.iframe = HIT_IFRAME;
         cat.flash = 0.22;
         if (cat.hp <= 0) {
-          if (cat.player) {
-            dropCarried(cat);
-            cat.respawning = true;
-            cat.respawnIn = 4;
-            cat.hp = 0;
-            cat.playerTarget = null;
-            hideCat(cat, true);
-          } else if (cat.role === "leader") {
+          dropCarried(cat);
+          cat.playerTarget = null;
+          if (cat.role === "leader") {
             if (cat.lives <= 0) wipeClan(cat.clanId);
             else {
               cat.lives -= 1;
               startLeaderRespawn(cat);
             }
+          } else if (cat.player) {
+            cat.respawning = true;
+            cat.respawnIn = 4;
+            cat.hp = 0;
+            hideCat(cat, true);
           } else despawn(cat);
         }
         if (!cat.dead) setCatLabel(cat);
@@ -1693,15 +1728,18 @@
           let meta = "wiped";
           if (!den?.eliminated) {
             const bits = [];
-            const leaders = living.filter((c) => c.role === "leader");
-            const meds = living.filter((c) => c.role === "medicine");
-            const deputies = living.filter((c) => c.role === "deputy");
+            const leaders = living.filter((c) => c.role === "leader" && !c.player);
+            const meds = living.filter((c) => c.role === "medicine" && !c.player);
+            const deputies = living.filter((c) => c.role === "deputy" && !c.player);
             const warriors = living.filter((c) => c.role === "warrior" && !c.player);
             const you = living.find((c) => c.player);
             if (you) {
-              bits.unshift(
-                you.respawning ? `You respawn ${Math.ceil(you.respawnIn)}s` : `You ${you.hp}`
-              );
+              const youLine = you.respawning
+                ? `You respawn ${Math.ceil(you.respawnIn)}s`
+                : you.role === "leader"
+                  ? `You ${you.hp} ${you.lives}`
+                  : `You ${you.hp}`;
+              bits.unshift(youLine);
             }
             for (const c of leaders) {
               bits.push(
@@ -1833,15 +1871,18 @@
           }
           if (cat.respawning) {
             cat.respawnIn -= step;
+            if (cat.role === "leader") {
+              cat.den.respawnIn = cat.respawnIn;
+              if (cat.respawnIn <= 0) finishLeaderRespawn(cat);
+              else if (Math.floor(cat.respawnIn * 4) !== Math.floor((cat.respawnIn + step) * 4)) {
+                setDenLabel(cat.den);
+                updateStatus();
+              }
+              continue;
+            }
             if (cat.player) {
               if (cat.respawnIn <= 0) finishPlayerRespawn(cat);
               continue;
-            }
-            cat.den.respawnIn = cat.respawnIn;
-            if (cat.respawnIn <= 0) finishLeaderRespawn(cat);
-            else if (Math.floor(cat.respawnIn * 4) !== Math.floor((cat.respawnIn + step) * 4)) {
-              setDenLabel(cat.den);
-              updateStatus();
             }
             continue;
           }
@@ -1886,6 +1927,7 @@
       const watchBtn = document.getElementById("mode-watch");
       const playBtn = document.getElementById("mode-play");
       const clanPick = document.getElementById("clan-pick");
+      const rolePick = document.getElementById("role-pick");
       const dpad = document.getElementById("dpad");
 
       function syncPlayUi() {
@@ -1894,6 +1936,9 @@
         dpad.classList.toggle("show", state.playMode);
         for (const btn of clanPick.querySelectorAll("button")) {
           btn.classList.toggle("active", btn.dataset.clan === state.playClan);
+        }
+        for (const btn of rolePick.querySelectorAll("button")) {
+          btn.classList.toggle("active", btn.dataset.role === state.playRole);
         }
       }
 
@@ -1911,6 +1956,13 @@
         const btn = e.target.closest("button[data-clan]");
         if (!btn) return;
         state.playClan = btn.dataset.clan;
+        syncPlayUi();
+        if (state.playMode) reset();
+      });
+      rolePick.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-role]");
+        if (!btn) return;
+        state.playRole = btn.dataset.role;
         syncPlayUi();
         if (state.playMode) reset();
       });
@@ -1965,18 +2017,10 @@
       });
 
       const clock = new THREE.Clock();
-      const follow = new THREE.Vector3();
-      const pan = new THREE.Vector3();
       syncPlayUi();
       reset();
       renderer.setAnimationLoop(() => {
         tick(clock.getDelta());
-        if (state.playMode && state.player && !state.player.dead && !state.player.respawning) {
-          follow.set(state.player.x, 0.45, state.player.z);
-          pan.copy(follow).sub(controls.target).multiplyScalar(0.12);
-          controls.target.add(pan);
-          camera.position.add(pan);
-        }
         controls.update();
         renderer.render(scene, camera);
         labelRenderer.render(scene, camera);
