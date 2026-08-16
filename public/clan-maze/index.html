@@ -22,7 +22,7 @@
         margin: 0;
         height: 100%;
         overflow: hidden;
-        background: #08140e;
+        background: #7eb7d4;
         color: #e2e8f0;
         -webkit-user-select: none;
         user-select: none;
@@ -119,6 +119,11 @@
         align-items: center;
         gap: 0.55rem;
         margin-bottom: 0.2rem;
+        font-size: 0.8rem;
+        color: #cbd5e1;
+      }
+      .pick-caption {
+        margin: 0.45rem 0 0.35rem;
         font-size: 0.8rem;
         color: #cbd5e1;
       }
@@ -399,6 +404,12 @@
         <input id="speed" type="range" min="0.25" max="3" step="0.25" value="1" />
         <span id="speed-val">1.0×</span>
       </label>
+      <p class="pick-caption">Time of day</p>
+      <div class="clan-pick" id="time-pick">
+        <button type="button" data-time="day" class="active">Day</button>
+        <button type="button" data-time="night">Night</button>
+        <button type="button" data-time="auto">Auto</button>
+      </div>
       <p class="hint">
         Drag to orbit, scroll to zoom. Hide the panel for a full view. Top-left arrows pan the camera.
         <a href="/">All projects</a>
@@ -483,7 +494,7 @@
       const renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       renderer.setSize(innerWidth, innerHeight);
-      renderer.setClearColor(0x0a1610, 1);
+      renderer.setClearColor(0x8ec8e8, 1);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       document.body.appendChild(renderer.domElement);
@@ -496,7 +507,7 @@
       document.body.appendChild(labelRenderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0x0a1610, 26, 78);
+      scene.fog = new THREE.Fog(0xb7d4c2, 48, 120);
 
       const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.1, 220);
       camera.position.set(0, 26, 34);
@@ -509,19 +520,99 @@
       controls.maxDistance = 72;
       controls.dampingFactor = 0.06;
 
-      scene.add(new THREE.HemisphereLight(0xb9d4c4, 0x1a2a18, 0.72));
-      scene.add(new THREE.AmbientLight(0x6b8f78, 0.22));
-      const moon = new THREE.DirectionalLight(0xffe2c2, 1.05);
-      moon.position.set(22, 28, 14);
-      moon.castShadow = true;
-      moon.shadow.mapSize.set(2048, 2048);
-      moon.shadow.camera.near = 4;
-      moon.shadow.camera.far = 90;
-      moon.shadow.camera.left = -40;
-      moon.shadow.camera.right = 40;
-      moon.shadow.camera.top = 40;
-      moon.shadow.camera.bottom = -40;
-      scene.add(moon);
+      const hemi = new THREE.HemisphereLight(0xe8f4ff, 0x7a9a52, 1.25);
+      const ambient = new THREE.AmbientLight(0xfff0d0, 0.62);
+      const keyLight = new THREE.DirectionalLight(0xfff3c4, 2.35);
+      keyLight.position.set(16, 38, 10);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(2048, 2048);
+      keyLight.shadow.camera.near = 4;
+      keyLight.shadow.camera.far = 90;
+      keyLight.shadow.camera.left = -40;
+      keyLight.shadow.camera.right = 40;
+      keyLight.shadow.camera.top = 40;
+      keyLight.shadow.camera.bottom = -40;
+      scene.add(hemi);
+      scene.add(ambient);
+      scene.add(keyLight);
+
+      const SKY = {
+        day: {
+          clear: 0x8ec8e8,
+          fog: 0xb7d4c2,
+          fogNear: 48,
+          fogFar: 120,
+          hemiSky: 0xe8f4ff,
+          hemiGround: 0x7a9a52,
+          hemiInt: 1.25,
+          amb: 0xfff0d0,
+          ambInt: 0.62,
+          key: 0xfff3c4,
+          keyInt: 2.35,
+          keyPos: [16, 38, 10],
+          body: 0x7eb7d4,
+        },
+        night: {
+          clear: 0x0a1610,
+          fog: 0x0a1610,
+          fogNear: 26,
+          fogFar: 78,
+          hemiSky: 0xb9d4c4,
+          hemiGround: 0x1a2a18,
+          hemiInt: 0.72,
+          amb: 0x6b8f78,
+          ambInt: 0.22,
+          key: 0xffe2c2,
+          keyInt: 1.05,
+          keyPos: [22, 28, 14],
+          body: 0x08140e,
+        },
+      };
+      const CYCLE_HALF = 180;
+      const CYCLE_FADE = 8;
+      const mixCol = new THREE.Color();
+      const skyCol = new THREE.Color();
+      const bodyCol = new THREE.Color();
+
+      function mixNum(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function dayAmountFromCycle(t) {
+        const period = CYCLE_HALF * 2;
+        const p = ((t % period) + period) % period;
+        if (p < CYCLE_HALF - CYCLE_FADE) return 1;
+        if (p < CYCLE_HALF) {
+          return 1 - THREE.MathUtils.smoothstep((p - (CYCLE_HALF - CYCLE_FADE)) / CYCLE_FADE, 0, 1);
+        }
+        if (p < period - CYCLE_FADE) return 0;
+        return THREE.MathUtils.smoothstep((p - (period - CYCLE_FADE)) / CYCLE_FADE, 0, 1);
+      }
+
+      function applyLighting(dayAmt) {
+        const t = THREE.MathUtils.clamp(dayAmt, 0, 1);
+        const D = SKY.day;
+        const N = SKY.night;
+        skyCol.setHex(N.clear).lerp(mixCol.setHex(D.clear), t);
+        renderer.setClearColor(skyCol, 1);
+        scene.fog.color.setHex(N.fog).lerp(mixCol.setHex(D.fog), t);
+        scene.fog.near = mixNum(N.fogNear, D.fogNear, t);
+        scene.fog.far = mixNum(N.fogFar, D.fogFar, t);
+        hemi.color.setHex(N.hemiSky).lerp(mixCol.setHex(D.hemiSky), t);
+        hemi.groundColor.setHex(N.hemiGround).lerp(mixCol.setHex(D.hemiGround), t);
+        hemi.intensity = mixNum(N.hemiInt, D.hemiInt, t);
+        ambient.color.setHex(N.amb).lerp(mixCol.setHex(D.amb), t);
+        ambient.intensity = mixNum(N.ambInt, D.ambInt, t);
+        keyLight.color.setHex(N.key).lerp(mixCol.setHex(D.key), t);
+        keyLight.intensity = mixNum(N.keyInt, D.keyInt, t);
+        keyLight.position.set(
+          mixNum(N.keyPos[0], D.keyPos[0], t),
+          mixNum(N.keyPos[1], D.keyPos[1], t),
+          mixNum(N.keyPos[2], D.keyPos[2], t)
+        );
+        bodyCol.setHex(N.body).lerp(mixCol.setHex(D.body), t);
+        document.body.style.background = `#${bodyCol.getHexString()}`;
+      }
 
       function makeGrassTexture() {
         const canvas = document.createElement("canvas");
@@ -622,6 +713,8 @@
         lookHeld: { up: false, down: false, left: false, right: false },
         lastLookDir: null,
         usedNames: new Set(),
+        timeMode: "day",
+        cycleT: 0,
       };
 
       const NAME_PREFIX = [
@@ -2128,6 +2221,7 @@
       const playBtn = document.getElementById("mode-play");
       const clanPick = document.getElementById("clan-pick");
       const rolePick = document.getElementById("role-pick");
+      const timePick = document.getElementById("time-pick");
       const dpad = document.getElementById("dpad");
       const lookPad = document.getElementById("look-pad");
       const hud = document.getElementById("hud");
@@ -2143,6 +2237,30 @@
         for (const btn of rolePick.querySelectorAll("button")) {
           btn.classList.toggle("active", btn.dataset.role === state.playRole);
         }
+        for (const btn of timePick.querySelectorAll("button")) {
+          btn.classList.toggle("active", btn.dataset.time === state.timeMode);
+        }
+      }
+
+      function setTimeMode(mode) {
+        const prev = state.timeMode;
+        if (mode === prev) {
+          syncPlayUi();
+          return;
+        }
+        state.timeMode = mode;
+        if (mode === "day") {
+          applyLighting(1);
+        } else if (mode === "night") {
+          applyLighting(0);
+        } else {
+          const fromDay =
+            prev === "day" ||
+            (prev === "auto" && dayAmountFromCycle(state.cycleT) > 0.5);
+          state.cycleT = fromDay ? 0 : CYCLE_HALF;
+          applyLighting(fromDay ? 1 : 0);
+        }
+        syncPlayUi();
       }
 
       watchBtn.addEventListener("click", () => {
@@ -2168,6 +2286,11 @@
         state.playRole = btn.dataset.role;
         syncPlayUi();
         if (state.playMode) reset();
+      });
+      timePick.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-time]");
+        if (!btn) return;
+        setTimeMode(btn.dataset.time);
       });
 
       const keyDir = {
@@ -2245,10 +2368,15 @@
       });
 
       const clock = new THREE.Clock();
+      applyLighting(1);
       syncPlayUi();
       reset();
       renderer.setAnimationLoop(() => {
         const dt = clock.getDelta();
+        if (!state.paused && state.timeMode === "auto") {
+          state.cycleT = (state.cycleT + dt) % (CYCLE_HALF * 2);
+          applyLighting(dayAmountFromCycle(state.cycleT));
+        }
         tick(dt);
         applyLookPan(dt);
         controls.update();
