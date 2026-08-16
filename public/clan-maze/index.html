@@ -210,6 +210,71 @@
         left: 3.3rem;
         bottom: 0;
       }
+      .hud-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.55rem;
+        margin-bottom: 0.55rem;
+      }
+      .hud-top h1 {
+        margin: 0;
+      }
+      .hud-top button {
+        flex: 0 0 auto;
+        font-size: 0.72rem;
+        padding: 0.28rem 0.55rem;
+      }
+      .hud.collapsed {
+        width: auto;
+        padding: 0.4rem 0.5rem 0.4rem 0.7rem;
+      }
+      .hud.collapsed .hud-top {
+        margin: 0;
+      }
+      .hud.collapsed .hud-body {
+        display: none;
+      }
+      .look-pad {
+        display: block;
+        left: 1rem;
+        top: 1rem;
+        bottom: auto;
+        width: 8.4rem;
+        height: 8.4rem;
+      }
+      .look-pad button {
+        width: 2.55rem;
+        height: 2.55rem;
+        font-size: 1rem;
+      }
+      .look-pad .up {
+        left: 2.9rem;
+      }
+      .look-pad .left {
+        left: 0;
+        top: 2.9rem;
+      }
+      .look-pad .right {
+        top: 2.9rem;
+      }
+      .look-pad .down {
+        left: 2.9rem;
+        top: auto;
+        bottom: 0;
+      }
+      .look-caption {
+        position: fixed;
+        left: 1.15rem;
+        top: 9.5rem;
+        z-index: 6;
+        font-size: 0.7rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        text-shadow: 0 1px 2px #000;
+        pointer-events: none;
+      }
       .tag {
         text-align: center;
         font-size: 11px;
@@ -282,8 +347,12 @@
     </style>
   </head>
   <body>
-    <aside class="hud">
-      <h1>Clan Maze</h1>
+    <aside class="hud" id="hud">
+      <div class="hud-top">
+        <h1>Clan Maze</h1>
+        <button id="hud-toggle" type="button">Hide</button>
+      </div>
+      <div class="hud-body" id="hud-body">
       <p class="lede">
         Four dens sit at the corners of a square maze. Deputies lead battle patrols
         more often than hunting patrols, and hunt isolated enemy warriors. Prey brought
@@ -317,11 +386,19 @@
         <span id="speed-val">1.0×</span>
       </label>
       <p class="hint">
-        Drag to orbit, scroll to zoom. Arrows move the way you are looking.
+        Drag to orbit, scroll to zoom. Hide the panel for a full view. Top-left arrows pan the camera.
         <a href="/">All projects</a>
       </p>
+      </div>
     </aside>
     <div class="banner" id="banner"></div>
+    <div class="dpad look-pad" id="look-pad" aria-label="Move the view">
+      <button class="up" type="button" data-look="up">▲</button>
+      <button class="left" type="button" data-look="left">◀</button>
+      <button class="right" type="button" data-look="right">▶</button>
+      <button class="down" type="button" data-look="down">▼</button>
+    </div>
+    <div class="look-caption">View</div>
     <div class="dpad" id="dpad" aria-label="Move your cat">
       <button class="up" type="button" data-dir="up">▲</button>
       <button class="left" type="button" data-dir="left">◀</button>
@@ -528,7 +605,8 @@
         playRole: "warrior",
         player: null,
         held: { up: false, down: false, left: false, right: false },
-        lastDir: null,
+        lookHeld: { up: false, down: false, left: false, right: false },
+        lastLookDir: null,
       };
 
       function shuffle(list) {
@@ -1593,7 +1671,7 @@
       const camRight = new THREE.Vector3();
       const camWish = new THREE.Vector3();
 
-      function stepFromView(dir) {
+      function viewWish(dir) {
         camera.getWorldDirection(camLook);
         camLook.y = 0;
         if (camLook.lengthSq() < 0.0001) {
@@ -1606,6 +1684,11 @@
         else if (dir === "down") camWish.copy(camLook).negate();
         else if (dir === "right") camWish.copy(camRight);
         else camWish.copy(camRight).negate();
+        return camWish;
+      }
+
+      function stepFromView(dir) {
+        viewWish(dir);
         const options = [
           { dr: -1, dc: 0 },
           { dr: 1, dc: 0 },
@@ -1635,7 +1718,31 @@
         else if (state.lastDir === dir) {
           state.lastDir = ["up", "down", "left", "right"].find((d) => state.held[d]) || null;
         }
-        document.querySelector(`.dpad [data-dir="${dir}"]`)?.classList.toggle("held", on);
+        dpad.querySelector(`[data-dir="${dir}"]`)?.classList.toggle("held", on);
+      }
+
+      function setLookHeld(dir, on) {
+        state.lookHeld[dir] = on;
+        if (on) state.lastLookDir = dir;
+        else if (state.lastLookDir === dir) {
+          state.lastLookDir = ["up", "down", "left", "right"].find((d) => state.lookHeld[d]) || null;
+        }
+        lookPad.querySelector(`[data-look="${dir}"]`)?.classList.toggle("held", on);
+      }
+
+      function activeLookDir() {
+        if (state.lastLookDir && state.lookHeld[state.lastLookDir]) return state.lastLookDir;
+        return ["up", "down", "left", "right"].find((d) => state.lookHeld[d]) || null;
+      }
+
+      const lookPan = new THREE.Vector3();
+      function applyLookPan(dt) {
+        const dir = activeLookDir();
+        if (!dir) return;
+        viewWish(dir);
+        lookPan.copy(camWish).multiplyScalar(22 * dt);
+        camera.position.add(lookPan);
+        controls.target.add(lookPan);
       }
 
       function movePlayer(cat, dt) {
@@ -1961,6 +2068,9 @@
       const clanPick = document.getElementById("clan-pick");
       const rolePick = document.getElementById("role-pick");
       const dpad = document.getElementById("dpad");
+      const lookPad = document.getElementById("look-pad");
+      const hud = document.getElementById("hud");
+      const hudToggle = document.getElementById("hud-toggle");
 
       function syncPlayUi() {
         watchBtn.classList.toggle("active", !state.playMode);
@@ -2025,6 +2135,27 @@
         el.addEventListener("pointercancel", up);
       }
       dpad.querySelectorAll("button").forEach(bindPad);
+      function bindLookPad(el) {
+        const dir = el.dataset.look;
+        const down = (ev) => {
+          ev.preventDefault();
+          setLookHeld(dir, true);
+        };
+        const up = (ev) => {
+          ev.preventDefault();
+          setLookHeld(dir, false);
+        };
+        el.addEventListener("pointerdown", down);
+        el.addEventListener("pointerup", up);
+        el.addEventListener("pointerleave", up);
+        el.addEventListener("pointercancel", up);
+      }
+      lookPad.querySelectorAll("button").forEach(bindLookPad);
+
+      hudToggle.addEventListener("click", () => {
+        const collapsed = hud.classList.toggle("collapsed");
+        hudToggle.textContent = collapsed ? "Show" : "Hide";
+      });
 
       addEventListener("keydown", (e) => {
         if (keyDir[e.code] && state.playMode) {
@@ -2052,7 +2183,9 @@
       syncPlayUi();
       reset();
       renderer.setAnimationLoop(() => {
-        tick(clock.getDelta());
+        const dt = clock.getDelta();
+        tick(dt);
+        applyLookPan(dt);
         controls.update();
         renderer.render(scene, camera);
         labelRenderer.render(scene, camera);
