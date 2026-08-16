@@ -314,13 +314,12 @@
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x05070c);
-      scene.fog = new THREE.Fog(0x05070c, 36, 90);
 
       const camera = new THREE.PerspectiveCamera(
         42,
         window.innerWidth / window.innerHeight,
         0.1,
-        240
+        800
       );
       camera.position.set(BOARD_W * 0.62, 22, BOARD_H * 0.72);
 
@@ -335,7 +334,7 @@
       controls.target.set(BOARD_W / 2, 0, BOARD_H / 2);
       controls.maxPolarAngle = Math.PI * 0.48;
       controls.minDistance = 8;
-      controls.maxDistance = 72;
+      controls.maxDistance = 220;
 
       scene.add(new THREE.AmbientLight(0x6b7c99, 0.55));
       const hemi = new THREE.HemisphereLight(0x9bd4ff, 0x1a1020, 0.55);
@@ -353,6 +352,7 @@
           color: 0x0b1220,
           metalness: 0.15,
           roughness: 0.9,
+          fog: false,
         })
       );
       floor.rotation.x = -Math.PI / 2;
@@ -366,6 +366,7 @@
         0x132033
       );
       gridHelper.position.set(BOARD_W / 2, 0.01, BOARD_H / 2);
+      for (const mat of [gridHelper.material].flat()) mat.fog = false;
       scene.add(gridHelper);
 
       const geometry = new THREE.BoxGeometry(1.12, 1, 1.12);
@@ -375,6 +376,7 @@
         roughness: 0.38,
         emissive: 0x000000,
         emissiveIntensity: 1,
+        fog: false,
       });
       const mesh = new THREE.InstancedMesh(geometry, material, SIZE);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
