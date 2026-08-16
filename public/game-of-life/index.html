@@ -90,7 +90,7 @@
       }
       label.control {
         display: grid;
-        grid-template-columns: 4.2rem 1fr 2.6rem;
+        grid-template-columns: 4.2rem 1fr 3.2rem;
         align-items: center;
         gap: 0.55rem;
         margin-bottom: 0.65rem;
@@ -164,15 +164,19 @@
       </label>
       <label class="control">
         Speed
-        <input id="speed" type="range" min="1" max="60" value="10" />
-        <span id="speed-val">10/s</span>
+        <input id="speed" type="range" min="0" max="100" value="59" />
+        <span id="speed-val">1/s</span>
       </label>
       <label class="toggle">
         <input id="reverse" type="checkbox" />
         Reverse (replay history)
       </label>
+      <label class="toggle">
+        <input id="mode2d" type="checkbox" />
+        Strict 2D
+      </label>
       <p class="hint">
-        Drag to orbit. Click or paint cells. Space pauses.
+        <span id="hint-cam">Drag to orbit. Click or paint cells. Space pauses.</span>
         <a href="/">All projects</a>
       </p>
     </div>
@@ -315,13 +319,21 @@
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x05070c);
 
-      const camera = new THREE.PerspectiveCamera(
+      const perspCam = new THREE.PerspectiveCamera(
         42,
         window.innerWidth / window.innerHeight,
         0.1,
         800
       );
-      camera.position.set(BOARD_W * 0.62, 22, BOARD_H * 0.72);
+      perspCam.position.set(BOARD_W * 0.62, 22, BOARD_H * 0.72);
+
+      const orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+      orthoCam.position.set(BOARD_W / 2, 50, BOARD_H / 2);
+      orthoCam.up.set(0, 0, -1);
+      orthoCam.lookAt(BOARD_W / 2, 0, BOARD_H / 2);
+
+      let camera = perspCam;
+      let mode2D = false;
 
       const renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -335,6 +347,8 @@
       controls.maxPolarAngle = Math.PI * 0.48;
       controls.minDistance = 8;
       controls.maxDistance = 220;
+      controls.minZoom = 0.28;
+      controls.maxZoom = 10;
 
       scene.add(new THREE.AmbientLight(0x6b7c99, 0.55));
       const hemi = new THREE.HemisphereLight(0x9bd4ff, 0x1a1020, 0.55);
@@ -404,10 +418,13 @@
       let generation = 0;
       let running = true;
       let reverse = false;
-      let gensPerSec = 10;
+      let gensPerSec = 1;
       let accum = 0;
       let painting = false;
       let paintValue = 1;
+
+      const SPEED_MIN = 0.1;
+      const SPEED_MAX = 5;
 
       const genEl = document.getElementById("gen");
       const aliveEl = document.getElementById("alive");
@@ -416,7 +433,61 @@
       const speedInput = document.getElementById("speed");
       const speedVal = document.getElementById("speed-val");
       const reverseInput = document.getElementById("reverse");
+      const mode2dInput = document.getElementById("mode2d");
       const seedSelect = document.getElementById("seed");
+      const hintCam = document.getElementById("hint-cam");
+
+      function sliderToSpeed(raw) {
+        const t = Number(raw) / 100;
+        return SPEED_MIN * Math.pow(SPEED_MAX / SPEED_MIN, t);
+      }
+
+      function formatSpeed(v) {
+        const digits = v < 1 ? 2 : 1;
+        return `${Number(v.toFixed(digits))}/s`;
+      }
+
+      function applySpeedFromSlider() {
+        gensPerSec = sliderToSpeed(speedInput.value);
+        speedVal.textContent = formatSpeed(gensPerSec);
+      }
+
+      function resizeCameras() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const aspect = w / h;
+        perspCam.aspect = aspect;
+        perspCam.updateProjectionMatrix();
+        const half = 22;
+        orthoCam.left = -half * aspect;
+        orthoCam.right = half * aspect;
+        orthoCam.top = half;
+        orthoCam.bottom = -half;
+        orthoCam.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      }
+
+      function applyViewMode() {
+        if (mode2D) {
+          camera = orthoCam;
+          controls.object = orthoCam;
+          controls.enableRotate = false;
+          controls.screenSpacePanning = true;
+          key.position.set(BOARD_W / 2, 80, BOARD_H / 2);
+          hintCam.textContent =
+            "Drag to pan. Scroll to zoom. Click or paint cells. Space pauses.";
+        } else {
+          camera = perspCam;
+          controls.object = perspCam;
+          controls.enableRotate = true;
+          controls.screenSpacePanning = false;
+          key.position.set(28, 42, 14);
+          hintCam.textContent =
+            "Drag to orbit. Click or paint cells. Space pauses.";
+        }
+        frameLiveCells();
+        controls.update();
+      }
 
       function idx(x, y) {
         return ((y + ROWS) % ROWS) * COLS + ((x + COLS) % COLS);
@@ -518,17 +589,30 @@
             maxY = Math.max(maxY, y);
           }
         }
-        if (maxX < 0) {
-          controls.target.set(BOARD_W / 2, 0, BOARD_H / 2);
-          camera.position.set(BOARD_W * 0.62, 22, BOARD_H * 0.72);
+        const empty = maxX < 0;
+        const cx = empty ? BOARD_W / 2 : ((minX + maxX + 1) / 2) * CELL;
+        const cz = empty ? BOARD_H / 2 : ((minY + maxY + 1) / 2) * CELL;
+        if (mode2D) {
+          const span = empty
+            ? Math.max(BOARD_W, BOARD_H)
+            : Math.max(maxX - minX + 1, maxY - minY + 1, 8) * CELL;
+          orthoCam.position.set(cx, 50, cz);
+          orthoCam.up.set(0, 0, -1);
+          orthoCam.lookAt(cx, 0, cz);
+          controls.target.set(cx, 0, cz);
+          orthoCam.zoom = THREE.MathUtils.clamp(28 / span, 0.28, 10);
+          orthoCam.updateProjectionMatrix();
           return;
         }
-        const cx = ((minX + maxX + 1) / 2) * CELL;
-        const cz = ((minY + maxY + 1) / 2) * CELL;
+        if (empty) {
+          controls.target.set(BOARD_W / 2, 0, BOARD_H / 2);
+          perspCam.position.set(BOARD_W * 0.62, 22, BOARD_H * 0.72);
+          return;
+        }
         const span = Math.max(maxX - minX + 1, maxY - minY + 1, 6) * CELL;
         const dist = Math.min(48, Math.max(12, span * 1.4));
         controls.target.set(cx, 0.4, cz);
-        camera.position.set(cx + dist * 0.42, dist * 0.92, cz + dist * 0.58);
+        perspCam.position.set(cx + dist * 0.42, dist * 0.92, cz + dist * 0.58);
       }
 
       function ease(t) {
@@ -564,10 +648,10 @@
             visG[i] += (targetColor.g - visG[i]) * colorK;
             visB[i] += (targetColor.b - visB[i]) * colorK;
             const u = ease(Math.min(1, Math.max(0, visLife[i])));
-            const h = 0.05 + u * (0.42 + visN[i] * 0.32);
+            const h = mode2D ? 0.1 : 0.05 + u * (0.42 + visN[i] * 0.32);
             const s = 0.001 + u * 0.999;
             dummy.position.set(x * CELL + CELL / 2, h / 2, y * CELL + CELL / 2);
-            dummy.scale.set(s, Math.max(h, 0.02), s);
+            dummy.scale.set(s, mode2D ? 0.1 : Math.max(h, 0.02), s);
             dummy.updateMatrix();
             mesh.setMatrixAt(i, dummy.matrix);
             color.setRGB(visR[i], visG[i], visB[i]);
@@ -646,12 +730,13 @@
       seedSelect.addEventListener("change", () => {
         plant(seedSelect.value);
       });
-      speedInput.addEventListener("input", () => {
-        gensPerSec = Number(speedInput.value);
-        speedVal.textContent = `${gensPerSec}/s`;
-      });
+      speedInput.addEventListener("input", applySpeedFromSlider);
       reverseInput.addEventListener("change", () => {
         reverse = reverseInput.checked;
+      });
+      mode2dInput.addEventListener("change", () => {
+        mode2D = mode2dInput.checked;
+        applyViewMode();
       });
       window.addEventListener("keydown", (event) => {
         if (event.code === "Space") {
@@ -660,13 +745,11 @@
         }
       });
 
-      window.addEventListener("resize", () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
+      window.addEventListener("resize", resizeCameras);
 
       const clock = new THREE.Clock();
+      applySpeedFromSlider();
+      resizeCameras();
       plant(seedSelect.value);
 
       function tick() {
