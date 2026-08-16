@@ -390,10 +390,10 @@
       </div>
       <div class="hud-body" id="hud-body">
       <p class="lede">
-        Four dens sit at the corners of a square maze. Deputies lead battle patrols
-        more often than hunting patrols, and hunt isolated enemy warriors. Prey brought
-        home usually raises a warrior, with a 10% chance of a deputy and a 5% chance of
-        a medicine cat.
+        Four dens sit at the corners of a square maze. Clanmates leave the den to
+        fight with you. Deputies lead battle patrols more often than hunting patrols,
+        and hunt isolated enemy warriors. Prey brought home usually raises a warrior,
+        with a 10% chance of a deputy and a 5% chance of a medicine cat.
       </p>
       <ul class="perks">
         <li><b>ThunderClan</b> — 40% extra warrior when a deputy or leader brings prey home.</li>
@@ -996,10 +996,11 @@
           const r = 1 + Math.floor(Math.random() * (ROWS - 2));
           const c = 1 + Math.floor(Math.random() * (COLS - 2));
           if (!walkable(r, c)) continue;
+          if (isDenCell(r, c)) continue;
           if (excludeDen && excludeDen.cells.some((cell) => cell.r === r && cell.c === c)) continue;
           return { r, c };
         }
-        return { r: Math.floor(ROWS / 2), c: Math.floor(COLS / 2) };
+        return mazeCenter();
       }
 
       function dist2(a, b) {
@@ -1578,6 +1579,28 @@
         return cat.den.cells.some((cell) => cell.r === cat.r && cell.c === cat.c);
       }
 
+      function clanPlayer(cat) {
+        const you = state.player;
+        if (!you || you === cat || you.dead || you.respawning) return null;
+        if (you.clanId !== cat.clanId) return null;
+        return you;
+      }
+
+      function leaveDenGoal(cat) {
+        return randomWalkable(cat.den);
+      }
+
+      function followAlly(cat, other) {
+        if (!other || other.dead || other.respawning) return leaveDenGoal(cat);
+        if (inOwnDen(other) && !cat.carrying) return leaveDenGoal(cat);
+        const manh = Math.abs(other.r - cat.r) + Math.abs(other.c - cat.c);
+        if (manh <= 1) {
+          const near = neighbors(other.r, other.c).filter((n) => !isDenCell(n.r, n.c));
+          if (near.length) return near[Math.floor(Math.random() * near.length)];
+        }
+        return { r: other.r, c: other.c };
+      }
+
       function createCat(den, role, cell, extra = {}) {
         const pos = cellCenter(cell.r, cell.c);
         const mesh = makeCatMesh(den, role);
@@ -2134,29 +2157,44 @@
 
       function pickGoal(cat) {
         if (cat.player) return { r: cat.r, c: cat.c };
-        const allies = liveCats().filter((c) => c.clanId === cat.clanId && c !== cat && !c.player);
+        const you = clanPlayer(cat);
+        const allies = liveCats().filter((c) => c.clanId === cat.clanId && c !== cat);
         const enemies = liveCats().filter((c) => c.clanId !== cat.clanId);
-        const cellOf = (other) => ({ r: other.r, c: other.c });
+        const threats = [
+          ...enemies,
+          ...liveDogs().filter((d) => !d.sleeping),
+        ];
         const med = allies.find((c) => c.role === "medicine");
 
         if (cat.role === "medicine") {
-          const injured = allies.filter((c) => c.hp < START_HP);
+          const injured = allies.filter((c) => c.hp < START_HP && !c.respawning);
           if (injured.length) {
             injured.sort((a, b) => dist2(cat, a) - dist2(cat, b));
-            return cellOf(injured[0]);
+            return followAlly(cat, injured[0]);
           }
-          if (Math.random() < 0.55) {
-            return cat.den.cells[Math.floor(Math.random() * cat.den.cells.length)];
-          }
-          return randomWalkable();
+          if (you) return followAlly(cat, you);
+          return leaveDenGoal(cat);
         }
 
-        if (cat.hp <= 5 && med) return cellOf(med);
-        if (cat.hp <= 4) {
-          return cat.den.cells[Math.floor(Math.random() * cat.den.cells.length)];
-        }
+        if (cat.hp <= 4 && med) return followAlly(cat, med);
+        if (cat.hp <= 3 && you) return followAlly(cat, you);
 
         if (cat.carrying) return cat.den.mid;
+
+        if (you) {
+          const nearYou = threats.filter((e) => dist2(e, you) < 140);
+          if (nearYou.length) {
+            nearYou.sort((a, b) => dist2(you, a) - dist2(you, b));
+            return followAlly(cat, nearYou[0]);
+          }
+          if (cat.role === "leader") {
+            const prey = nearestPrey(cat);
+            if (prey && dist2(cat, prey) < dist2(cat, you) * 0.45) {
+              return { r: prey.r, c: prey.c };
+            }
+          }
+          return followAlly(cat, you);
+        }
 
         if (cat.role === "deputy") {
           if (cat.patrolUntil <= 0) {
@@ -2165,12 +2203,12 @@
           }
           if (cat.patrol === "battle") {
             const target = pickBattleTarget(cat);
-            if (target) return cellOf(target);
+            if (target) return followAlly(cat, target);
           }
           const prey = nearestPrey(cat);
           if (prey) return { r: prey.r, c: prey.c };
           const fallback = pickBattleTarget(cat);
-          if (fallback) return cellOf(fallback);
+          if (fallback) return followAlly(cat, fallback);
         }
 
         if (cat.role === "leader") {
@@ -2179,30 +2217,23 @@
         }
 
         if (cat.role === "warrior") {
-          const deputies = allies.filter((c) => c.role === "deputy");
-          const battleDeputy = deputies.find((c) => c.patrol === "battle");
-          if (battleDeputy && Math.random() < 0.7) cat.followDeputy = true;
-          else if (Math.random() < 0.22) cat.followDeputy = !cat.followDeputy;
+          const deputies = allies.filter((c) => c.role === "deputy" && !c.player);
+          const battleDeputy = deputies.find((c) => c.patrol === "battle" && !inOwnDen(c));
+          if (battleDeputy && Math.random() < 0.75) cat.followDeputy = true;
+          else if (Math.random() < 0.18) cat.followDeputy = !cat.followDeputy;
           const deputy =
             (cat.followDeputy && battleDeputy) ||
-            deputies.sort((a, b) => dist2(cat, a) - dist2(cat, b))[0];
-          if (cat.followDeputy && deputy) {
-            const manh = Math.abs(deputy.r - cat.r) + Math.abs(deputy.c - cat.c);
-            if (manh <= 1) {
-              const near = neighbors(deputy.r, deputy.c);
-              if (near.length) return near[Math.floor(Math.random() * near.length)];
-            }
-            return cellOf(deputy);
+            deputies.filter((d) => !inOwnDen(d)).sort((a, b) => dist2(cat, a) - dist2(cat, b))[0];
+          if (cat.followDeputy && deputy && !inOwnDen(deputy)) {
+            return followAlly(cat, deputy);
           }
         }
 
-        if (enemies.length && cat.role !== "warrior") {
-          enemies.sort((a, b) => dist2(cat, a) - dist2(cat, b));
-          const near = enemies[0];
-          const manhattan = Math.abs(near.r - cat.r) + Math.abs(near.c - cat.c);
-          if (manhattan <= 14) return cellOf(near);
+        if (threats.length) {
+          threats.sort((a, b) => dist2(cat, a) - dist2(cat, b));
+          return followAlly(cat, threats[0]);
         }
-        return randomWalkable(cat.den);
+        return leaveDenGoal(cat);
       }
 
       function retarget(cat) {
@@ -2211,6 +2242,7 @@
         cat.path = path && path.length ? path : [];
         cat.pathI = 1;
         cat.rethink = cat.carrying ? 0.55 : 1.4 + Math.random() * 1.6;
+        if (!cat.player && !cat.carrying && inOwnDen(cat)) cat.rethink = 0.12;
       }
 
       function finishPlayerRespawn(cat) {
@@ -2632,6 +2664,9 @@
           }
           if (cat.role === "deputy" && cat.patrolUntil > 0) {
             cat.patrolUntil = Math.max(0, cat.patrolUntil - step);
+          }
+          if (!cat.player && !cat.carrying && inOwnDen(cat)) {
+            cat.rethink = Math.min(cat.rethink, 0.08);
           }
           moveCat(cat, step);
           tryPickup(cat);
