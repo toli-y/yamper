@@ -342,6 +342,9 @@
         color: #facc15;
         margin-left: 0.55em;
       }
+      .tag.dog .catname {
+        color: #fdba74;
+      }
       .den-tag {
         text-align: center;
         font-size: 13px;
@@ -397,6 +400,7 @@
         <li><b>ShadowClan</b> — at night, 50% chance to deal 3 damage instead of 1.</li>
         <li><b>WindClan</b> — 1.5× faster than the other clans.</li>
         <li><b>RiverClan</b> — 20% chance to take no damage from an enemy warrior.</li>
+        <li><b>Dogs</b> — a 20 HP stray appears at the maze center every minute and hunts every clan. At night they go back to the middle and sleep.</li>
       </ul>
       <div class="mode-row">
         <button id="mode-watch" class="active" type="button">Watch</button>
@@ -465,6 +469,10 @@
       const HIT_IFRAME = 0.85;
       const CAT_RADIUS = 0.52;
       const MAX_PREY = 5;
+      const MAX_DOGS = 8;
+      const DOG_HP = 20;
+      const DOG_SPAWN_S = 60;
+      const DOG_RADIUS = 0.72;
       const MAX_WARRIORS = 8;
       const MAX_DEPUTIES = 4;
       const MAX_MEDS = 3;
@@ -735,6 +743,9 @@
         usedNames: new Set(),
         timeMode: "day",
         cycleT: 0,
+        dogs: [],
+        dogSpawnIn: DOG_SPAWN_S,
+        dogSeq: 1,
       };
 
       const NAME_PREFIX = [
@@ -851,8 +862,20 @@
           };
         });
 
+        const midR = Math.floor(ROWS / 2);
+        const midC = Math.floor(COLS / 2);
+        for (let r = midR - 1; r <= midR + 1; r++) {
+          for (let c = midC - 1; c <= midC + 1; c++) {
+            if (r > 0 && r < ROWS - 1 && c > 0 && c < COLS - 1) grid[r][c] = 0;
+          }
+        }
+
         state.grid = grid;
         state.dens = dens;
+      }
+
+      function mazeCenter() {
+        return { r: Math.floor(ROWS / 2), c: Math.floor(COLS / 2) };
       }
 
       function neighbors(r, c) {
@@ -1075,6 +1098,97 @@
         return group;
       }
 
+      function makeDogMesh() {
+        const coat = 0x7c4a2d;
+        const darkHex = 0x3f2a1d;
+        const bellyHex = 0xd6b48a;
+        const eyeHex = 0xf59e0b;
+        const mat = new THREE.MeshStandardMaterial({
+          color: coat,
+          emissive: 0xb45309,
+          emissiveIntensity: 0.06,
+          roughness: 0.86,
+        });
+        const dark = new THREE.MeshStandardMaterial({ color: darkHex, roughness: 0.9 });
+        const belly = new THREE.MeshStandardMaterial({ color: bellyHex, roughness: 0.84 });
+        const eyeMat = new THREE.MeshStandardMaterial({
+          color: eyeHex,
+          emissive: eyeHex,
+          emissiveIntensity: 0.4,
+          roughness: 0.28,
+        });
+        const noseMat = new THREE.MeshStandardMaterial({ color: 0x1c1410, roughness: 0.4 });
+        const group = new THREE.Group();
+
+        const body = new THREE.Mesh(shared.body, mat);
+        body.scale.set(1.2, 0.85, 2.15);
+        body.position.y = 0.42;
+        body.castShadow = true;
+        const chest = new THREE.Mesh(shared.chest, belly);
+        chest.scale.set(1.15, 0.95, 1.25);
+        chest.position.set(0, 0.38, 0.38);
+        const head = new THREE.Mesh(shared.head, mat);
+        head.scale.set(1.15, 1.05, 1.2);
+        head.position.set(0, 0.62, 0.62);
+        head.castShadow = true;
+        const muzzle = new THREE.Mesh(shared.muzzle, belly);
+        muzzle.scale.set(1.05, 0.78, 1.85);
+        muzzle.position.set(0, 0.52, 0.88);
+        const nose = new THREE.Mesh(shared.nose, noseMat);
+        nose.scale.setScalar(1.2);
+        nose.position.set(0, 0.54, 1.08);
+        const eyeL = new THREE.Mesh(shared.eye, eyeMat);
+        const eyeR = new THREE.Mesh(shared.eye, eyeMat);
+        eyeL.position.set(-0.11, 0.68, 0.78);
+        eyeR.position.set(0.11, 0.68, 0.78);
+        const earL = new THREE.Mesh(shared.ear, dark);
+        const earR = new THREE.Mesh(shared.ear, dark);
+        earL.scale.set(1.15, 1.35, 0.7);
+        earR.scale.set(1.15, 1.35, 0.7);
+        earL.position.set(-0.16, 0.72, 0.55);
+        earR.position.set(0.16, 0.72, 0.55);
+        earL.rotation.z = 0.95;
+        earR.rotation.z = -0.95;
+        earL.rotation.x = 0.35;
+        earR.rotation.x = 0.35;
+        const stripe = new THREE.Mesh(shared.body, dark);
+        stripe.scale.set(0.45, 0.42, 1.7);
+        stripe.position.set(0, 0.52, 0.02);
+
+        const tail = new THREE.Group();
+        tail.position.set(0, 0.46, -0.52);
+        for (let i = 0; i < 5; i++) {
+          const seg = new THREE.Mesh(shared.tailSeg, i > 2 ? dark : mat);
+          seg.position.set(0, 0.04 * i, -0.14 * i);
+          seg.scale.setScalar(1.15 - i * 0.12);
+          tail.add(seg);
+        }
+
+        const legs = [];
+        for (const [x, z] of [
+          [-0.18, 0.32],
+          [0.18, 0.32],
+          [-0.18, -0.32],
+          [0.18, -0.32],
+        ]) {
+          const leg = new THREE.Mesh(shared.leg, dark);
+          leg.scale.set(1.15, 1.15, 1.15);
+          leg.position.set(x, 0.16, z);
+          const paw = new THREE.Mesh(shared.paw, dark);
+          paw.scale.setScalar(1.2);
+          paw.position.set(x, 0.05, z + 0.02);
+          legs.push(leg, paw);
+        }
+
+        group.add(body, chest, head, muzzle, nose, eyeL, eyeR, earL, earR, stripe, tail, ...legs);
+        group.scale.setScalar(1.42);
+        group.userData.body = body;
+        group.userData.mat = mat;
+        group.userData.baseEmit = 0.06;
+        group.userData.tail = tail;
+        return group;
+      }
+
       function hpClass(hp) {
         if (hp <= 3) return "low";
         if (hp <= 7) return "mid";
@@ -1103,6 +1217,17 @@
           <div class="role">${roleLabel(cat)}</div>
           <div class="nums">
             <span class="hp ${hpKind}">${cat.respawning || cat.dead ? 0 : cat.hp}</span>${lives}
+          </div>`;
+      }
+
+      function setDogLabel(dog) {
+        const hpKind = dog.hp <= 6 ? "low" : dog.hp <= 14 ? "mid" : "";
+        const rest = dog.sleeping ? "Sleeping" : isNight() ? "Returning" : "Hunting";
+        dog.labelEl.innerHTML = `
+          <div class="catname">${dog.dogName}</div>
+          <div class="role">${rest}</div>
+          <div class="nums">
+            <span class="hp ${hpKind}">${dog.dead ? 0 : dog.hp}</span>
           </div>`;
       }
 
@@ -1370,6 +1495,25 @@
           den.world = mid;
           setDenLabel(den);
         }
+        buildDogBed();
+      }
+
+      function buildDogBed() {
+        const mid = mazeCenter();
+        const pos = cellCenter(mid.r, mid.c);
+        const pad = new THREE.Mesh(
+          shared.pad,
+          new THREE.MeshStandardMaterial({
+            color: 0x4a3728,
+            roughness: 0.92,
+            emissive: 0x1c1410,
+            emissiveIntensity: 0.12,
+          })
+        );
+        pad.position.set(pos.x, 0.06, pos.z);
+        pad.scale.setScalar(0.92);
+        pad.receiveShadow = true;
+        worldGroup.add(pad);
       }
 
       function isDenCell(r, c) {
@@ -1535,6 +1679,150 @@
           mesh,
           carriedBy: null,
         });
+      }
+
+      function liveDogs() {
+        return state.dogs.filter((dog) => !dog.dead);
+      }
+
+      function spawnDog() {
+        if (liveDogs().length >= MAX_DOGS) return;
+        let cell = mazeCenter();
+        if (!walkable(cell.r, cell.c)) cell = randomWalkable();
+        const pos = cellCenter(cell.r, cell.c);
+        const mesh = makeDogMesh();
+        mesh.position.set(pos.x, 0, pos.z);
+        worldGroup.add(mesh);
+
+        const n = state.dogSeq++;
+        const labelEl = document.createElement("div");
+        labelEl.className = "tag dog";
+        const label = new CSS2DObject(labelEl);
+        label.position.set(pos.x, 0.02, pos.z);
+        worldGroup.add(label);
+
+        const dog = {
+          kind: "dog",
+          id: `dog-${n}`,
+          clanId: "dog",
+          role: "dog",
+          color: 0xb45309,
+          hp: DOG_HP,
+          dead: false,
+          sleeping: isNight(),
+          iframe: 0.6,
+          flash: 0,
+          r: cell.r,
+          c: cell.c,
+          x: pos.x,
+          z: pos.z,
+          path: [],
+          pathI: 0,
+          rethink: 0.2,
+          facing: 0,
+          dogName: n === 1 ? "Dog" : `Dog ${n}`,
+          mesh,
+          label,
+          labelEl,
+        };
+        state.dogs.push(dog);
+        setDogLabel(dog);
+        syncDogVisual(dog);
+      }
+
+      function hideDog(dog, hidden) {
+        dog.mesh.visible = !hidden;
+        dog.label.visible = !hidden;
+      }
+
+      function despawnDog(dog) {
+        dog.dead = true;
+        dog.hp = 0;
+        hideDog(dog, true);
+        dog.labelEl?.remove();
+        worldGroup.remove(dog.mesh);
+        worldGroup.remove(dog.label);
+        state.dogs = state.dogs.filter((d) => d !== dog);
+      }
+
+      function pickDogGoal(dog) {
+        if (isNight()) return mazeCenter();
+        const cats = liveCats();
+        if (!cats.length) return mazeCenter();
+        cats.sort((a, b) => dist2(dog, a) - dist2(dog, b));
+        return { r: cats[0].r, c: cats[0].c };
+      }
+
+      function retargetDog(dog) {
+        const goal = pickDogGoal(dog);
+        const path = astar({ r: dog.r, c: dog.c }, goal);
+        dog.path = path && path.length ? path : [];
+        dog.pathI = 1;
+        dog.rethink = isNight() ? 0.8 : 0.45;
+        setDogLabel(dog);
+      }
+
+      function syncDogVisual(dog) {
+        const bob = dog.sleeping || dog.dead ? 0 : Math.sin(state.t * 9 + dog.x) * 0.02;
+        dog.mesh.position.set(dog.x, dog.sleeping ? 0.18 : bob, dog.z);
+        dog.mesh.rotation.y = dog.facing;
+        dog.mesh.rotation.z = dog.sleeping ? Math.PI / 2.35 : 0;
+        dog.label.position.set(dog.x, 0.02, dog.z);
+        if (dog.mesh.userData.tail) {
+          dog.mesh.userData.tail.rotation.y = dog.sleeping
+            ? 0.15
+            : Math.sin(state.t * 8 + dog.x) * 0.35;
+        }
+      }
+
+      function moveDog(dog, dt) {
+        const mid = mazeCenter();
+        const here = cellCenter(dog.r, dog.c);
+        const atMid =
+          dog.r === mid.r &&
+          dog.c === mid.c &&
+          Math.hypot(dog.x - here.x, dog.z - here.z) < 0.12;
+        if (isNight() && atMid) {
+          if (!dog.sleeping) {
+            dog.sleeping = true;
+            setDogLabel(dog);
+          }
+          dog.path = [];
+          dog.facing = 0;
+          syncDogVisual(dog);
+          return;
+        }
+        if (dog.sleeping) {
+          dog.sleeping = false;
+          setDogLabel(dog);
+        }
+        dog.rethink -= dt;
+        if (dog.rethink <= 0 || !dog.path) retargetDog(dog);
+        if (!dog.path || dog.pathI >= dog.path.length) return;
+
+        const next = dog.path[dog.pathI];
+        if (!walkable(next.r, next.c)) {
+          retargetDog(dog);
+          return;
+        }
+        const target = cellCenter(next.r, next.c);
+        const dx = target.x - dog.x;
+        const dz = target.z - dog.z;
+        const dist = Math.hypot(dx, dz);
+        const speed = 2.48 * state.speed;
+        if (dist < 0.08) {
+          dog.r = next.r;
+          dog.c = next.c;
+          dog.x = target.x;
+          dog.z = target.z;
+          dog.pathI += 1;
+        } else {
+          const step = Math.min(dist, speed * dt);
+          dog.x += (dx / dist) * step;
+          dog.z += (dz / dist) * step;
+          dog.facing = Math.atan2(dx, dz);
+        }
+        syncDogVisual(dog);
       }
 
       function syncPreyVisual(prey) {
@@ -1723,6 +2011,10 @@
         cat.iframe = HIT_IFRAME;
         cat.flash = dmg > 1 ? 0.38 : 0.22;
         if (cat.hp <= 0) {
+          if (cat.kind === "dog") {
+            despawnDog(cat);
+            return true;
+          }
           dropCarried(cat);
           cat.playerTarget = null;
           if (cat.role === "leader") {
@@ -1738,7 +2030,10 @@
             hideCat(cat, true);
           } else despawn(cat);
         }
-        if (!cat.dead) setCatLabel(cat);
+        if (!cat.dead) {
+          if (cat.kind === "dog") setDogLabel(cat);
+          else setCatLabel(cat);
+        }
         return true;
       }
 
@@ -2037,9 +2332,11 @@
 
       function resolveCollisions() {
         const cats = liveCats();
+        const dogs = liveDogs();
         const hitPairs = [];
         const healPairs = [];
         const reach = (CAT_RADIUS * 2) ** 2;
+        const dogReach = (CAT_RADIUS + DOG_RADIUS) ** 2;
 
         for (let i = 0; i < cats.length; i++) {
           for (let j = i + 1; j < cats.length; j++) {
@@ -2057,8 +2354,22 @@
           }
         }
 
-        for (const [a, b] of hitPairs) {
+        for (const dog of dogs) {
+          for (const cat of cats) {
+            if (dist2(dog, cat) > dogReach) continue;
+            if (dog.sleeping) hitPairs.push([dog, cat, "oneway"]);
+            else hitPairs.push([cat, dog]);
+          }
+        }
+
+        for (const pair of hitPairs) {
+          const [a, b, mode] = pair;
           if (a.dead || b.dead || a.respawning || b.respawning) continue;
+          if (mode === "oneway") {
+            if (a.iframe > 0) continue;
+            applyDamage(a, b);
+            continue;
+          }
           if (a.iframe > 0 || b.iframe > 0) continue;
           applyDamage(a, b);
           applyDamage(b, a);
@@ -2110,6 +2421,21 @@
           </div>`;
         }).join("");
 
+        const dogs = liveDogs();
+        if (dogs.length) {
+          const asleep = dogs.filter((d) => d.sleeping).length;
+          const bits = [`${dogs.length}`];
+          if (asleep) bits.push(`${asleep} asleep`);
+          clanStatus.insertAdjacentHTML(
+            "beforeend",
+            `<div class="clan">
+              <span class="swatch" style="background:#b45309"></span>
+              <b>Dogs</b>
+              <span class="meta">${bits.join(" · ")}</span>
+            </div>`
+          );
+        }
+
         const aliveClans = state.dens.filter((d) => !d.eliminated);
         if (!state.over && aliveClans.length <= 1) {
           state.over = true;
@@ -2125,6 +2451,7 @@
       function clearWorld() {
         for (const cat of state.cats) cat.labelEl?.remove();
         for (const den of state.dens) den.labelEl?.remove();
+        for (const dog of state.dogs) dog.labelEl?.remove();
         while (worldGroup.children.length) {
           const child = worldGroup.children[0];
           worldGroup.remove(child);
@@ -2134,6 +2461,9 @@
         state.prey = [];
         state.preySpawnIn = 1.4;
         state.spawnSeq = 1;
+        state.dogs = [];
+        state.dogSpawnIn = DOG_SPAWN_S;
+        state.dogSeq = 1;
         state.usedNames = new Set();
         banner.classList.remove("show");
         state.over = false;
@@ -2242,6 +2572,30 @@
           tryPickup(cat);
           if (cat.carrying && inOwnDen(cat)) deliverPrey(cat);
           syncCatVisual(cat);
+        }
+
+        for (const dog of liveDogs()) {
+          if (dog.iframe > 0) dog.iframe = Math.max(0, dog.iframe - step);
+          if (dog.flash !== 0) {
+            const mat = dog.mesh.userData.mat;
+            if (mat) {
+              mat.emissive.setHex(dog.flash > 0 ? 0xaa2222 : 0x22aa55);
+              mat.emissiveIntensity = (dog.mesh.userData.baseEmit ?? 0.06) + Math.abs(dog.flash) * 4;
+            }
+            dog.flash = dog.flash > 0 ? Math.max(0, dog.flash - step) : Math.min(0, dog.flash + step);
+            if (dog.flash === 0 && mat) {
+              mat.emissive.setHex(dog.color);
+              mat.emissiveIntensity = dog.mesh.userData.baseEmit ?? 0.06;
+            }
+          }
+          moveDog(dog, step);
+          syncDogVisual(dog);
+        }
+
+        state.dogSpawnIn -= Math.min(dt, 0.05);
+        if (state.dogSpawnIn <= 0) {
+          state.dogSpawnIn = DOG_SPAWN_S;
+          spawnDog();
         }
 
         state.preySpawnIn -= step;
