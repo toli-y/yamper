@@ -1,0 +1,6 @@
+---
+description: Load the shared AGENTS.md playbook
+alwaysApply: true
+---
+
+Follow `AGENTS.md` at the repository root. It is the only source of agent guidelines for this repo (Cursor, Claude, ChatGPT, Gemini). Do not duplicate those rules in other files.

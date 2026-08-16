@@ -1,5 +1,7 @@
 # Agent instructions
 
+This file is the **only** source of agent guidelines for this repository. Cursor, Claude Code, ChatGPT/Codex/Copilot, and Gemini all load it (directly or through a one-line adapter). Edit this file when the playbook changes. Do not copy these rules into `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, or `.github/copilot-instructions.md`.
+
 This repository uses **trunk-based development**. `main` is trunk. Cloudflare deploys the public site from `main` whenever it moves.
 
 The site is a catalog of **browser video games**. Each game is a single HTML page. Use **Three.js** for visualization, effects, and drawing.
