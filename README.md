@@ -1,6 +1,20 @@
 # yamper
 
-Public site for this repo is served from `main` by Cloudflare Workers static assets. Agents use trunk-based development: each iteration lands on `main` so Cloudflare can publish it.
+Public catalog of browser games at [https://yamper.anatoly-yevtushenko.workers.dev/](https://yamper.anatoly-yevtushenko.workers.dev/). Cloudflare deploys `main`. Agents use trunk-based development: each iteration lands on `main` so the site updates automatically.
+
+Each project is a **single-page HTML game** in its own folder under `public/`, drawn with **Three.js**. The hub page is a table of contents with a link to every project's landing page.
+
+## Layout
+
+```text
+public/
+  index.html                 # hub: table of contents
+  <project-slug>/
+    index.html               # that project's landing page / game
+```
+
+- Hub: https://yamper.anatoly-yevtushenko.workers.dev/
+- Project: https://yamper.anatoly-yevtushenko.workers.dev/<project-slug>/
 
 ## How agents ship
 
@@ -8,6 +22,8 @@ Cursor Cloud Agents cannot work directly on `main`. They create a short-lived `c
 
 ```text
 agent iteration
+  → write public/<project-slug>/index.html
+  → update the hub table in public/index.html
   → commit + push on cursor/*
   → PR targeting main
   → GitHub Action squash-merges to main
