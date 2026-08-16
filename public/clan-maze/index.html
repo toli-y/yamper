@@ -224,8 +224,9 @@
     <aside class="hud">
       <h1>Clan Maze</h1>
       <p class="lede">
-        Four dens sit at the corners of a square maze. Rival collisions cost 1 HP.
-        Medicine cats restore allies to 10. Leaders carry extra lives.
+        Four dens sit at the corners of a square maze. Leaders and deputies fetch
+        glowing prey and bring it home to raise warriors. Rival collisions cost 1 HP.
+        Medicine cats restore allies to 10.
       </p>
       <div class="clans" id="clan-status"></div>
       <div class="row">
@@ -257,6 +258,9 @@
       const RESPAWN_S = 10;
       const HIT_IFRAME = 0.85;
       const CAT_RADIUS = 0.52;
+      const MAX_PREY = 5;
+      const MAX_WARRIORS = 8;
+      const PICKUP_R2 = 0.62 ** 2;
 
       const CLANS = [
         {
@@ -362,6 +366,7 @@
         wall: new THREE.BoxGeometry(CELL * 0.96, 1, CELL * 0.96),
         pad: new THREE.CylinderGeometry(CELL * 1.35, CELL * 1.45, 0.12, 20),
         xBar: new THREE.BoxGeometry(CELL * 2.1, 0.16, 0.22),
+        prey: new THREE.SphereGeometry(0.22, 16, 12),
       };
 
       const worldGroup = new THREE.Group();
@@ -380,6 +385,10 @@
         grid: [],
         dens: [],
         cats: [],
+        prey: [],
+        preySpawnIn: 1.4,
+        preySeq: 1,
+        warriorSeq: 1,
         walls: null,
         wallDummy: new THREE.Object3D(),
         t: 0,
@@ -601,6 +610,9 @@
           leaf.position.set(0.16, 0.5, -0.05);
           group.add(leaf);
         }
+        if (role === "warrior") {
+          group.scale.setScalar(0.92);
+        }
         group.userData.body = body;
         group.userData.mat = mat;
         return group;
@@ -615,6 +627,7 @@
       function roleLabel(cat) {
         if (cat.role === "medicine") return `Medicine cat ${cat.clanName}`;
         if (cat.role === "leader") return `Leader ${cat.clanName}`;
+        if (cat.role === "warrior") return `Warrior ${cat.clanName}`;
         return `Deputy ${cat.clanName}`;
       }
 
@@ -731,6 +744,59 @@
         }
       }
 
+      function isDenCell(r, c) {
+        return state.dens.some((den) => den.cells.some((cell) => cell.r === r && cell.c === c));
+      }
+
+      function inOwnDen(cat) {
+        return cat.den.cells.some((cell) => cell.r === cat.r && cell.c === cat.c);
+      }
+
+      function createCat(den, role, cell, extra = {}) {
+        const pos = cellCenter(cell.r, cell.c);
+        const mesh = makeCatMesh(den, role);
+        mesh.position.set(pos.x, 0, pos.z);
+        worldGroup.add(mesh);
+
+        const labelEl = document.createElement("div");
+        labelEl.className = "tag";
+        const label = new CSS2DObject(labelEl);
+        label.position.set(pos.x, 0.02, pos.z);
+        worldGroup.add(label);
+
+        const cat = {
+          id: extra.id || `${den.id}-${role}`,
+          clanId: den.id,
+          clanName: den.name,
+          role,
+          color: den.color,
+          hp: START_HP,
+          lives: role === "leader" ? START_LIVES : 0,
+          dead: false,
+          respawning: false,
+          respawnIn: 0,
+          iframe: extra.iframe ?? 1.1,
+          flash: 0,
+          r: cell.r,
+          c: cell.c,
+          x: pos.x,
+          z: pos.z,
+          path: [],
+          pathI: 0,
+          rethink: 0.2 + Math.random(),
+          facing: 0,
+          carrying: null,
+          followDeputy: extra.followDeputy ?? false,
+          mesh,
+          label,
+          labelEl,
+          den,
+        };
+        setCatLabel(cat);
+        state.cats.push(cat);
+        return cat;
+      }
+
       function spawnCats() {
         state.cats = [];
         for (const den of state.dens) {
@@ -740,48 +806,119 @@
             den.cells[DEN_SIZE - 1],
             den.cells[DEN_SIZE * (DEN_SIZE - 1)],
           ];
-          roles.forEach((role, i) => {
-            const cell = spots[i];
-            const pos = cellCenter(cell.r, cell.c);
-            const mesh = makeCatMesh(den, role);
-            mesh.position.set(pos.x, 0, pos.z);
-            worldGroup.add(mesh);
+          roles.forEach((role, i) => createCat(den, role, spots[i]));
+        }
+      }
 
-            const labelEl = document.createElement("div");
-            labelEl.className = "tag";
-            const label = new CSS2DObject(labelEl);
-            label.position.set(pos.x, 0.02, pos.z);
-            worldGroup.add(label);
+      function mapPrey() {
+        return state.prey.filter((p) => !p.carriedBy);
+      }
 
-            const cat = {
-              id: `${den.id}-${role}`,
-              clanId: den.id,
-              clanName: den.name,
-              role,
-              color: den.color,
-              hp: START_HP,
-              lives: role === "leader" ? START_LIVES : 0,
-              dead: false,
-              respawning: false,
-              respawnIn: 0,
-              iframe: 1.1,
-              flash: 0,
-              r: cell.r,
-              c: cell.c,
-              x: pos.x,
-              z: pos.z,
-              path: [],
-              pathI: 0,
-              rethink: 0.2 + Math.random(),
-              facing: 0,
-              mesh,
-              label,
-              labelEl,
-              den,
-            };
-            setCatLabel(cat);
-            state.cats.push(cat);
-          });
+      function nearestPrey(cat) {
+        const free = mapPrey();
+        if (!free.length) return null;
+        free.sort((a, b) => dist2(cat, a) - dist2(cat, b));
+        return free[0];
+      }
+
+      function spawnPrey() {
+        let cell = null;
+        for (let n = 0; n < 120; n++) {
+          const cand = randomWalkable();
+          if (isDenCell(cand.r, cand.c)) continue;
+          if (state.prey.some((p) => !p.carriedBy && p.r === cand.r && p.c === cand.c)) continue;
+          cell = cand;
+          break;
+        }
+        if (!cell) return;
+        const pos = cellCenter(cell.r, cell.c);
+        const mesh = new THREE.Mesh(
+          shared.prey,
+          new THREE.MeshStandardMaterial({
+            color: 0xfff7ed,
+            emissive: 0xfbbf24,
+            emissiveIntensity: 0.95,
+            roughness: 0.28,
+          })
+        );
+        mesh.position.set(pos.x, 0.38, pos.z);
+        mesh.castShadow = true;
+        worldGroup.add(mesh);
+        state.prey.push({
+          id: state.preySeq++,
+          r: cell.r,
+          c: cell.c,
+          x: pos.x,
+          z: pos.z,
+          mesh,
+          carriedBy: null,
+        });
+      }
+
+      function syncPreyVisual(prey) {
+        const pulse = 1 + Math.sin(state.t * 5 + prey.id) * 0.14;
+        if (prey.carriedBy && !prey.carriedBy.dead && !prey.carriedBy.respawning) {
+          const cat = prey.carriedBy;
+          prey.mesh.position.set(cat.x, 0.92, cat.z - 0.05);
+          prey.mesh.scale.setScalar(0.72);
+        } else {
+          prey.mesh.position.set(prey.x, 0.36 + Math.sin(state.t * 4 + prey.id) * 0.08, prey.z);
+          prey.mesh.scale.setScalar(pulse);
+        }
+      }
+
+      function dropCarried(cat) {
+        const prey = cat.carrying;
+        if (!prey) return;
+        prey.carriedBy = null;
+        prey.r = cat.r;
+        prey.c = cat.c;
+        const pos = cellCenter(cat.r, cat.c);
+        prey.x = pos.x;
+        prey.z = pos.z;
+        cat.carrying = null;
+      }
+
+      function removePrey(prey) {
+        if (prey.carriedBy) prey.carriedBy.carrying = null;
+        worldGroup.remove(prey.mesh);
+        state.prey = state.prey.filter((p) => p !== prey);
+      }
+
+      function spawnWarrior(den) {
+        const living = state.cats.filter(
+          (c) => c.clanId === den.id && c.role === "warrior" && !c.dead
+        );
+        if (living.length >= MAX_WARRIORS) return null;
+        const cell = den.cells[Math.floor(Math.random() * den.cells.length)];
+        return createCat(den, "warrior", cell, {
+          id: `${den.id}-warrior-${state.warriorSeq++}`,
+          iframe: 0.9,
+          followDeputy: Math.random() < 0.55,
+        });
+      }
+
+      function deliverPrey(cat) {
+        const prey = cat.carrying;
+        if (!prey) return;
+        removePrey(prey);
+        spawnWarrior(cat.den);
+        cat.flash = -0.2;
+        cat.path = [];
+        cat.rethink = 0.15;
+      }
+
+      function tryPickup(cat) {
+        if (cat.carrying) return;
+        if (cat.role !== "leader" && cat.role !== "deputy") return;
+        for (const prey of state.prey) {
+          if (prey.carriedBy) continue;
+          if (dist2(cat, prey) > PICKUP_R2) continue;
+          prey.carriedBy = cat;
+          cat.carrying = prey;
+          cat.path = [];
+          cat.rethink = 0;
+          break;
         }
       }
 
@@ -809,6 +946,7 @@
       }
 
       function despawn(cat) {
+        dropCarried(cat);
         cat.dead = true;
         cat.hp = 0;
         cat.respawning = false;
@@ -829,6 +967,7 @@
       }
 
       function startLeaderRespawn(cat) {
+        dropCarried(cat);
         cat.respawning = true;
         cat.respawnIn = RESPAWN_S;
         cat.hp = 0;
@@ -879,6 +1018,7 @@
         const allies = liveCats().filter((c) => c.clanId === cat.clanId && c !== cat);
         const enemies = liveCats().filter((c) => c.clanId !== cat.clanId);
         const cellOf = (other) => ({ r: other.r, c: other.c });
+        const med = allies.find((c) => c.role === "medicine");
 
         if (cat.role === "medicine") {
           const injured = allies.filter((c) => c.hp < START_HP);
@@ -892,13 +1032,31 @@
           return randomWalkable();
         }
 
-        const med = allies.find((c) => c.role === "medicine");
-        if (cat.hp <= 6 && med) return cellOf(med);
+        if (cat.hp <= 5 && med) return cellOf(med);
         if (cat.hp <= 4) {
           return cat.den.cells[Math.floor(Math.random() * cat.den.cells.length)];
         }
 
-        if (enemies.length) {
+        if (cat.role === "leader" || cat.role === "deputy") {
+          if (cat.carrying) return cat.den.mid;
+          const prey = nearestPrey(cat);
+          if (prey) return { r: prey.r, c: prey.c };
+        }
+
+        if (cat.role === "warrior") {
+          if (Math.random() < 0.22) cat.followDeputy = !cat.followDeputy;
+          const deputy = allies.find((c) => c.role === "deputy");
+          if (cat.followDeputy && deputy) {
+            const manh = Math.abs(deputy.r - cat.r) + Math.abs(deputy.c - cat.c);
+            if (manh <= 1) {
+              const near = neighbors(deputy.r, deputy.c);
+              if (near.length) return near[Math.floor(Math.random() * near.length)];
+            }
+            return cellOf(deputy);
+          }
+        }
+
+        if (enemies.length && cat.role !== "warrior") {
           enemies.sort((a, b) => dist2(cat, a) - dist2(cat, b));
           const near = enemies[0];
           const manhattan = Math.abs(near.r - cat.r) + Math.abs(near.c - cat.c);
@@ -912,7 +1070,7 @@
         const path = astar({ r: cat.r, c: cat.c }, goal);
         cat.path = path && path.length ? path : [];
         cat.pathI = 1;
-        cat.rethink = 1.6 + Math.random() * 1.8;
+        cat.rethink = cat.carrying ? 0.55 : 1.4 + Math.random() * 1.6;
       }
 
       function moveCat(cat, dt) {
@@ -983,18 +1141,21 @@
           const den = state.dens.find((d) => d.id === clan.id);
           const members = state.cats.filter((c) => c.clanId === clan.id);
           const living = members.filter((c) => !c.dead);
-          const leader = members.find((c) => c.role === "leader");
           let meta = "wiped";
           if (!den?.eliminated) {
-            const bits = living.map((c) => {
-              if (c.role === "leader") {
-                return c.respawning
-                  ? `Leader respawn ${Math.ceil(c.respawnIn)}s (${c.lives})`
-                  : `Leader ${c.hp} ${c.lives}`;
-              }
-              if (c.role === "medicine") return `Med ${c.hp}`;
-              return `Deputy ${c.hp}`;
-            });
+            const bits = living
+              .filter((c) => c.role !== "warrior")
+              .map((c) => {
+                if (c.role === "leader") {
+                  return c.respawning
+                    ? `Leader respawn ${Math.ceil(c.respawnIn)}s (${c.lives})`
+                    : `Leader ${c.hp} ${c.lives}`;
+                }
+                if (c.role === "medicine") return `Med ${c.hp}`;
+                return `Deputy ${c.hp}`;
+              });
+            const warriors = living.filter((c) => c.role === "warrior");
+            if (warriors.length) bits.push(`Warriors ${warriors.length}`);
             meta = bits.join(" · ") || "wiped";
           }
           return `<div class="clan ${den?.eliminated ? "dead" : ""}">
@@ -1025,6 +1186,8 @@
         }
         state.walls = null;
         state.cats = [];
+        state.prey = [];
+        state.preySpawnIn = 1.4;
         banner.classList.remove("show");
         state.over = false;
       }
@@ -1072,6 +1235,8 @@
         buildDens();
         plantTrees();
         spawnCats();
+        spawnPrey();
+        spawnPrey();
         updateStatus();
       }
 
@@ -1106,8 +1271,24 @@
             continue;
           }
           moveCat(cat, step);
+          tryPickup(cat);
+          if (cat.carrying && inOwnDen(cat)) deliverPrey(cat);
           syncCatVisual(cat);
         }
+
+        state.preySpawnIn -= step;
+        if (state.preySpawnIn <= 0) {
+          state.preySpawnIn = 2.8 + Math.random() * 7.5;
+          if (mapPrey().length < MAX_PREY) {
+            spawnPrey();
+            for (const cat of liveCats()) {
+              if ((cat.role === "leader" || cat.role === "deputy") && !cat.carrying) {
+                cat.rethink = 0;
+              }
+            }
+          }
+        }
+        for (const prey of state.prey) syncPreyVisual(prey);
 
         resolveCollisions();
         updateStatus();
