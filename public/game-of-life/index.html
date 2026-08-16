@@ -68,7 +68,8 @@
         gap: 0.45rem;
         margin-bottom: 0.7rem;
       }
-      button {
+      button,
+      select {
         appearance: none;
         border: 1px solid #334155;
         background: #111827;
@@ -79,7 +80,8 @@
         font-size: 0.8rem;
         cursor: pointer;
       }
-      button:hover {
+      button:hover,
+      select:hover {
         border-color: #7dd3fc;
       }
       button.active {
@@ -95,9 +97,15 @@
         font-size: 0.8rem;
         color: #cbd5e1;
       }
+      label.seed {
+        grid-template-columns: 4.2rem 1fr;
+      }
       input[type="range"] {
         width: 100%;
         accent-color: #22d3ee;
+      }
+      select {
+        width: 100%;
       }
       .toggle {
         display: flex;
@@ -141,6 +149,19 @@
         <button id="random" type="button">Randomize</button>
         <button id="clear" type="button">Clear</button>
       </div>
+      <label class="control seed">
+        Seed
+        <select id="seed">
+          <option value="pulsar">Pulsar</option>
+          <option value="glider">Glider</option>
+          <option value="lwss">Lightweight spaceship</option>
+          <option value="pentadecathlon">Pentadecathlon</option>
+          <option value="rpentomino">R-pentomino</option>
+          <option value="acorn">Acorn</option>
+          <option value="gun">Gosper glider gun</option>
+          <option value="random">Random cluster</option>
+        </select>
+      </label>
       <label class="control">
         Speed
         <input id="speed" type="range" min="1" max="60" value="10" />
@@ -159,23 +180,149 @@
       import * as THREE from "three";
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-      const COLS = 72;
-      const ROWS = 72;
-      const CELL = 1.12;
+      const COLS = 48;
+      const ROWS = 48;
+      const CELL = 1.35;
       const MAX_HISTORY = 2400;
       const SIZE = COLS * ROWS;
+      const BOARD_W = COLS * CELL;
+      const BOARD_H = ROWS * CELL;
+
+      const PATTERNS = {
+        glider: [
+          [1, 0],
+          [2, 1],
+          [0, 2],
+          [1, 2],
+          [2, 2],
+        ],
+        lwss: [
+          [1, 0],
+          [4, 0],
+          [0, 1],
+          [0, 2],
+          [4, 2],
+          [0, 3],
+          [1, 3],
+          [2, 3],
+          [3, 3],
+        ],
+        pulsar: (() => {
+          const cells = [];
+          const bars = [
+            [2, 0],
+            [3, 0],
+            [4, 0],
+            [8, 0],
+            [9, 0],
+            [10, 0],
+            [2, 5],
+            [3, 5],
+            [4, 5],
+            [8, 5],
+            [9, 5],
+            [10, 5],
+          ];
+          const spokes = [
+            [0, 2],
+            [0, 3],
+            [0, 4],
+            [5, 2],
+            [5, 3],
+            [5, 4],
+            [7, 2],
+            [7, 3],
+            [7, 4],
+            [12, 2],
+            [12, 3],
+            [12, 4],
+          ];
+          for (const [x, y] of [...bars, ...spokes]) {
+            cells.push([x, y], [x, 12 - y]);
+          }
+          return cells;
+        })(),
+        pentadecathlon: [
+          [2, 0],
+          [7, 0],
+          [0, 1],
+          [1, 1],
+          [3, 1],
+          [4, 1],
+          [5, 1],
+          [6, 1],
+          [8, 1],
+          [9, 1],
+          [2, 2],
+          [7, 2],
+        ],
+        rpentomino: [
+          [1, 0],
+          [2, 0],
+          [0, 1],
+          [1, 1],
+          [1, 2],
+        ],
+        acorn: [
+          [1, 0],
+          [3, 1],
+          [0, 2],
+          [1, 2],
+          [4, 2],
+          [5, 2],
+          [6, 2],
+        ],
+        gun: [
+          [24, 0],
+          [22, 1],
+          [24, 1],
+          [12, 2],
+          [13, 2],
+          [20, 2],
+          [21, 2],
+          [34, 2],
+          [35, 2],
+          [11, 3],
+          [15, 3],
+          [20, 3],
+          [21, 3],
+          [34, 3],
+          [35, 3],
+          [0, 4],
+          [1, 4],
+          [10, 4],
+          [16, 4],
+          [20, 4],
+          [21, 4],
+          [0, 5],
+          [1, 5],
+          [10, 5],
+          [14, 5],
+          [16, 5],
+          [17, 5],
+          [22, 5],
+          [24, 5],
+          [10, 6],
+          [16, 6],
+          [24, 6],
+          [11, 7],
+          [15, 7],
+          [12, 8],
+          [13, 8],
+        ],
+      };
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x05070c);
-      scene.fog = new THREE.Fog(0x05070c, 70, 160);
+      scene.fog = new THREE.Fog(0x05070c, 36, 90);
 
       const camera = new THREE.PerspectiveCamera(
         42,
         window.innerWidth / window.innerHeight,
         0.1,
-        400
+        240
       );
-      camera.position.set(38, 62, 48);
+      camera.position.set(BOARD_W * 0.62, 22, BOARD_H * 0.72);
 
       const renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -185,23 +332,23 @@
 
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
-      controls.target.set((COLS * CELL) / 2, 0, (ROWS * CELL) / 2);
+      controls.target.set(BOARD_W / 2, 0, BOARD_H / 2);
       controls.maxPolarAngle = Math.PI * 0.48;
-      controls.minDistance = 18;
-      controls.maxDistance = 140;
+      controls.minDistance = 8;
+      controls.maxDistance = 72;
 
       scene.add(new THREE.AmbientLight(0x6b7c99, 0.55));
       const hemi = new THREE.HemisphereLight(0x9bd4ff, 0x1a1020, 0.55);
       scene.add(hemi);
       const key = new THREE.DirectionalLight(0xe0f2fe, 1.15);
-      key.position.set(40, 70, 18);
+      key.position.set(28, 42, 14);
       scene.add(key);
-      const rim = new THREE.PointLight(0x22d3ee, 18, 120, 2);
-      rim.position.set(COLS * CELL * 0.2, 18, ROWS * CELL * 0.2);
+      const rim = new THREE.PointLight(0x22d3ee, 16, 70, 2);
+      rim.position.set(BOARD_W * 0.3, 12, BOARD_H * 0.3);
       scene.add(rim);
 
       const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(COLS * CELL + 8, ROWS * CELL + 8),
+        new THREE.PlaneGeometry(BOARD_W + 4, BOARD_H + 4),
         new THREE.MeshStandardMaterial({
           color: 0x0b1220,
           metalness: 0.15,
@@ -209,7 +356,7 @@
         })
       );
       floor.rotation.x = -Math.PI / 2;
-      floor.position.set((COLS * CELL) / 2, -0.08, (ROWS * CELL) / 2);
+      floor.position.set(BOARD_W / 2, -0.08, BOARD_H / 2);
       scene.add(floor);
 
       const gridHelper = new THREE.GridHelper(
@@ -218,10 +365,10 @@
         0x1e293b,
         0x132033
       );
-      gridHelper.position.set((COLS * CELL) / 2, 0.01, (ROWS * CELL) / 2);
+      gridHelper.position.set(BOARD_W / 2, 0.01, BOARD_H / 2);
       scene.add(gridHelper);
 
-      const geometry = new THREE.BoxGeometry(0.92, 1, 0.92);
+      const geometry = new THREE.BoxGeometry(1.12, 1, 1.12);
       const material = new THREE.MeshStandardMaterial({
         color: 0xffffff,
         metalness: 0.18,
@@ -258,6 +405,7 @@
       const speedInput = document.getElementById("speed");
       const speedVal = document.getElementById("speed-val");
       const reverseInput = document.getElementById("reverse");
+      const seedSelect = document.getElementById("seed");
 
       function idx(x, y) {
         return ((y + ROWS) % ROWS) * COLS + ((x + COLS) % COLS);
@@ -302,49 +450,73 @@
         return true;
       }
 
-      function randomize() {
-        history.length = 0;
-        generation = 0;
-        for (let i = 0; i < SIZE; i++) grid[i] = Math.random() < 0.28 ? 1 : 0;
-        stampGlider(8, 8);
-        stampGlider(40, 20);
-        stampAcorn(52, 48);
+      function boundsOf(cells) {
+        let maxX = 0;
+        let maxY = 0;
+        for (const [x, y] of cells) {
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+        return { maxX, maxY };
       }
 
-      function clearGrid() {
+      function stampCentered(cells) {
+        const { maxX, maxY } = boundsOf(cells);
+        const ox = Math.floor((COLS - maxX - 1) / 2);
+        const oy = Math.floor((ROWS - maxY - 1) / 2);
+        for (const [x, y] of cells) grid[idx(ox + x, oy + y)] = 1;
+      }
+
+      function randomCluster() {
+        const w = 10;
+        const h = 10;
+        const ox = Math.floor((COLS - w) / 2);
+        const oy = Math.floor((ROWS - h) / 2);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            if (Math.random() < 0.46) grid[idx(ox + x, oy + y)] = 1;
+          }
+        }
+      }
+
+      function resetRun() {
         history.length = 0;
         generation = 0;
         grid.fill(0);
       }
 
-      function stampGlider(x, y) {
-        const cells = [
-          [1, 0],
-          [2, 1],
-          [0, 2],
-          [1, 2],
-          [2, 2],
-        ];
-        for (const [dx, dy] of cells) grid[idx(x + dx, y + dy)] = 1;
+      function plant(name) {
+        resetRun();
+        if (name === "random") randomCluster();
+        else stampCentered(PATTERNS[name]);
+        frameLiveCells();
       }
 
-      function stampAcorn(x, y) {
-        const cells = [
-          [1, 0],
-          [3, 1],
-          [0, 2],
-          [1, 2],
-          [4, 2],
-          [5, 2],
-          [6, 2],
-        ];
-        for (const [dx, dy] of cells) grid[idx(x + dx, y + dy)] = 1;
-      }
-
-      function countAlive() {
-        let n = 0;
-        for (let i = 0; i < SIZE; i++) n += grid[i];
-        return n;
+      function frameLiveCells() {
+        let minX = COLS;
+        let minY = ROWS;
+        let maxX = -1;
+        let maxY = -1;
+        for (let y = 0; y < ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            if (!grid[y * COLS + x]) continue;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+        if (maxX < 0) {
+          controls.target.set(BOARD_W / 2, 0, BOARD_H / 2);
+          camera.position.set(BOARD_W * 0.62, 22, BOARD_H * 0.72);
+          return;
+        }
+        const cx = ((minX + maxX + 1) / 2) * CELL;
+        const cz = ((minY + maxY + 1) / 2) * CELL;
+        const span = Math.max(maxX - minX + 1, maxY - minY + 1, 8) * CELL;
+        const dist = Math.min(48, Math.max(14, span * 1.45));
+        controls.target.set(cx, 0.4, cz);
+        camera.position.set(cx + dist * 0.42, dist * 0.92, cz + dist * 0.58);
       }
 
       function updateInstances() {
@@ -354,9 +526,13 @@
             const i = y * COLS + x;
             const isAlive = grid[i] === 1;
             const n = isAlive ? neighbors(x, y) : 0;
-            const h = isAlive ? 0.35 + n * 0.28 : 0.02;
+            const h = isAlive ? 0.45 + n * 0.32 : 0.02;
             dummy.position.set(x * CELL + CELL / 2, h / 2, y * CELL + CELL / 2);
-            dummy.scale.set(isAlive ? 1 : 0.001, isAlive ? h : 0.001, isAlive ? 1 : 0.001);
+            dummy.scale.set(
+              isAlive ? 1 : 0.001,
+              isAlive ? h : 0.001,
+              isAlive ? 1 : 0.001
+            );
             dummy.updateMatrix();
             mesh.setMatrixAt(i, dummy.matrix);
             if (isAlive) {
@@ -430,11 +606,17 @@
         updateInstances();
       });
       document.getElementById("random").addEventListener("click", () => {
-        randomize();
+        seedSelect.value = "random";
+        plant("random");
         updateInstances();
       });
       document.getElementById("clear").addEventListener("click", () => {
-        clearGrid();
+        resetRun();
+        frameLiveCells();
+        updateInstances();
+      });
+      seedSelect.addEventListener("change", () => {
+        plant(seedSelect.value);
         updateInstances();
       });
       speedInput.addEventListener("input", () => {
@@ -458,7 +640,7 @@
       });
 
       const clock = new THREE.Clock();
-      randomize();
+      plant(seedSelect.value);
       updateInstances();
 
       function tick() {
@@ -476,8 +658,7 @@
           }
           if (steps > 0) updateInstances();
         }
-        rim.position.x =
-          COLS * CELL * (0.5 + 0.28 * Math.sin(performance.now() * 0.0004));
+        rim.position.x = BOARD_W * (0.5 + 0.22 * Math.sin(performance.now() * 0.0004));
         controls.update();
         renderer.render(scene, camera);
         requestAnimationFrame(tick);
