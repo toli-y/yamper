@@ -317,7 +317,7 @@
         <span id="speed-val">1.0×</span>
       </label>
       <p class="hint">
-        Drag to orbit, scroll to zoom. Arrows move your cat.
+        Drag to orbit, scroll to zoom. Arrows move the way you are looking.
         <a href="/">All projects</a>
       </p>
     </aside>
@@ -1589,12 +1589,40 @@
         setCatLabel(cat);
       }
 
-      const DIR_DELTA = {
-        up: { dr: -1, dc: 0 },
-        down: { dr: 1, dc: 0 },
-        left: { dr: 0, dc: -1 },
-        right: { dr: 0, dc: 1 },
-      };
+      const camLook = new THREE.Vector3();
+      const camRight = new THREE.Vector3();
+      const camWish = new THREE.Vector3();
+
+      function stepFromView(dir) {
+        camera.getWorldDirection(camLook);
+        camLook.y = 0;
+        if (camLook.lengthSq() < 0.0001) {
+          camLook.set(camera.up.x, 0, camera.up.z);
+          if (camLook.lengthSq() < 0.0001) camLook.set(0, 0, -1);
+        }
+        camLook.normalize();
+        camRight.set(-camLook.z, 0, camLook.x);
+        if (dir === "up") camWish.copy(camLook);
+        else if (dir === "down") camWish.copy(camLook).negate();
+        else if (dir === "right") camWish.copy(camRight);
+        else camWish.copy(camRight).negate();
+        const options = [
+          { dr: -1, dc: 0 },
+          { dr: 1, dc: 0 },
+          { dr: 0, dc: -1 },
+          { dr: 0, dc: 1 },
+        ];
+        let best = null;
+        let bestDot = 0.15;
+        for (const o of options) {
+          const dot = camWish.x * o.dc + camWish.z * o.dr;
+          if (dot > bestDot) {
+            bestDot = dot;
+            best = o;
+          }
+        }
+        return best;
+      }
 
       function activeDir() {
         if (state.lastDir && state.held[state.lastDir]) return state.lastDir;
@@ -1619,10 +1647,12 @@
         if (atCenter) {
           const dir = activeDir();
           if (dir) {
-            const { dr, dc } = DIR_DELTA[dir];
-            const nr = cat.r + dr;
-            const nc = cat.c + dc;
-            if (walkable(nr, nc)) cat.playerTarget = { r: nr, c: nc };
+            const step = stepFromView(dir);
+            if (step) {
+              const nr = cat.r + step.dr;
+              const nc = cat.c + step.dc;
+              if (walkable(nr, nc)) cat.playerTarget = { r: nr, c: nc };
+            }
           }
         }
         const dest = cat.playerTarget;
@@ -1639,10 +1669,12 @@
           cat.playerTarget = null;
           const again = activeDir();
           if (again) {
-            const next = DIR_DELTA[again];
-            const nr = cat.r + next.dr;
-            const nc = cat.c + next.dc;
-            if (walkable(nr, nc)) cat.playerTarget = { r: nr, c: nc };
+            const next = stepFromView(again);
+            if (next) {
+              const nr = cat.r + next.dr;
+              const nc = cat.c + next.dc;
+              if (walkable(nr, nc)) cat.playerTarget = { r: nr, c: nc };
+            }
           }
         } else {
           const step = Math.min(dist, speed * dt);
