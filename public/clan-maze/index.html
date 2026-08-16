@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Clan Maze</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #07100c;
+        color: #e2e8f0;
+      }
+      canvas {
+        display: block;
+      }
+      .hud {
+        position: fixed;
+        inset: 1rem auto auto 1rem;
+        z-index: 3;
+        width: min(23.5rem, calc(100vw - 2rem));
+        padding: 1rem 1.1rem 1.05rem;
+        border: 1px solid #243044;
+        border-radius: 14px;
+        background: rgba(8, 12, 20, 0.82);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(10px);
+      }
+      h1 {
+        margin: 0 0 0.15rem;
+        font-size: 1.15rem;
+        letter-spacing: 0.02em;
+      }
+      .lede {
+        margin: 0 0 0.85rem;
+        color: #94a3b8;
+        font-size: 0.8rem;
+        line-height: 1.4;
+      }
+      .clans {
+        display: grid;
+        gap: 0.4rem;
+        margin: 0 0 0.8rem;
+      }
+      .clan {
+        display: grid;
+        grid-template-columns: 0.7rem 1fr auto;
+        gap: 0.5rem;
+        align-items: start;
+        font-size: 0.76rem;
+        line-height: 1.35;
+        color: #cbd5e1;
+      }
+      .swatch {
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 999px;
+        margin-top: 0.18rem;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+      }
+      .clan b {
+        color: #f8fafc;
+        font-weight: 700;
+      }
+      .clan .meta {
+        color: #94a3b8;
+        font-variant-numeric: tabular-nums;
+      }
+      .clan.dead b,
+      .clan.dead .meta {
+        color: #64748b;
+        text-decoration: line-through;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin-bottom: 0.7rem;
+      }
+      button {
+        appearance: none;
+        border: 1px solid #334155;
+        background: #111827;
+        color: #e2e8f0;
+        border-radius: 8px;
+        padding: 0.38rem 0.65rem;
+        font: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: #7dd3fc;
+      }
+      button.active {
+        background: #164e63;
+        border-color: #22d3ee;
+      }
+      label.control {
+        display: grid;
+        grid-template-columns: 4.2rem 1fr 2.4rem;
+        align-items: center;
+        gap: 0.55rem;
+        margin-bottom: 0.2rem;
+        font-size: 0.8rem;
+        color: #cbd5e1;
+      }
+      input[type="range"] {
+        width: 100%;
+        accent-color: #22d3ee;
+      }
+      .hint {
+        margin: 0.65rem 0 0;
+        color: #64748b;
+        font-size: 0.73rem;
+        line-height: 1.4;
+      }
+      a {
+        color: #7dd3fc;
+      }
+      .banner {
+        display: none;
+        position: fixed;
+        left: 50%;
+        bottom: 1.4rem;
+        transform: translateX(-50%);
+        z-index: 4;
+        padding: 0.7rem 1rem;
+        border-radius: 12px;
+        border: 1px solid #334155;
+        background: rgba(8, 12, 20, 0.9);
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      }
+      .banner.show {
+        display: block;
+      }
+      .tag {
+        text-align: center;
+        font-size: 11px;
+        line-height: 1.15;
+        color: #f8fafc;
+        text-shadow:
+          0 1px 2px #000,
+          0 0 8px #000;
+        white-space: nowrap;
+        transform: translate(-50%, 10px);
+        user-select: none;
+        pointer-events: none;
+      }
+      .tag .role {
+        font-weight: 700;
+      }
+      .tag .nums {
+        font-variant-numeric: tabular-nums;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+      }
+      .tag .hp {
+        color: #86efac;
+      }
+      .tag .hp.mid {
+        color: #fbbf24;
+      }
+      .tag .hp.low {
+        color: #f87171;
+      }
+      .tag .lives {
+        color: #facc15;
+        margin-left: 0.55em;
+      }
+      .den-tag {
+        text-align: center;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        text-shadow:
+          0 1px 2px #000,
+          0 0 10px #000;
+        transform: translate(-50%, 16px);
+        white-space: nowrap;
+        pointer-events: none;
+        user-select: none;
+      }
+      .den-tag .sub {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: none;
+        color: #fde68a;
+      }
+      .den-tag .x {
+        display: none;
+        color: #f87171;
+        font-size: 1.35rem;
+        line-height: 1;
+      }
+      .den-tag.out .x {
+        display: block;
+      }
+      .den-tag.out .name {
+        text-decoration: line-through;
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body>
+    <aside class="hud">
+      <h1>Clan Maze</h1>
+      <p class="lede">
+        Four dens sit at the corners of a square maze. Rival collisions cost 1 HP.
+        Medicine cats restore allies to 10. Leaders carry extra lives.
+      </p>
+      <div class="clans" id="clan-status"></div>
+      <div class="row">
+        <button id="pause" type="button">Pause</button>
+        <button id="restart" type="button">New maze</button>
+      </div>
+      <label class="control">
+        Speed
+        <input id="speed" type="range" min="0.25" max="3" step="0.25" value="1" />
+        <span id="speed-val">1.0×</span>
+      </label>
+      <p class="hint">
+        Drag to orbit, scroll to zoom.
+        <a href="/">All projects</a>
+      </p>
+    </aside>
+    <div class="banner" id="banner"></div>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { CSS2DObject, CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
+
+      const ROWS = 31;
+      const COLS = 31;
+      const CELL = 1.55;
+      const DEN_SIZE = 3;
+      const START_HP = 10;
+      const START_LIVES = 9;
+      const RESPAWN_S = 10;
+      const HIT_IFRAME = 0.85;
+      const CAT_RADIUS = 0.42;
+
+      const CLANS = [
+        {
+          id: "thunder",
+          name: "Thunderclan",
+          color: 0xf59e0b,
+          hex: "#f59e0b",
+          corner: "nw",
+        },
+        {
+          id: "shadow",
+          name: "Shadowclan",
+          color: 0x7c3aed,
+          hex: "#a78bfa",
+          corner: "ne",
+        },
+        {
+          id: "wind",
+          name: "Windclan",
+          color: 0xeab308,
+          hex: "#facc15",
+          corner: "sw",
+        },
+        {
+          id: "river",
+          name: "Riverclan",
+          color: 0x38bdf8,
+          hex: "#38bdf8",
+          corner: "se",
+        },
+      ];
+
+      const mazeW = COLS * CELL;
+      const mazeD = ROWS * CELL;
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.setClearColor(0x07100c, 1);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      document.body.appendChild(renderer.domElement);
+
+      const labelRenderer = new CSS2DRenderer();
+      labelRenderer.setSize(innerWidth, innerHeight);
+      labelRenderer.domElement.style.position = "absolute";
+      labelRenderer.domElement.style.inset = "0";
+      labelRenderer.domElement.style.pointerEvents = "none";
+      document.body.appendChild(labelRenderer.domElement);
+
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x07100c, 38, 92);
+
+      const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 200);
+      camera.position.set(0, 46, 32);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.target.set(0, 0, 0);
+      controls.maxPolarAngle = Math.PI / 2.12;
+      controls.minDistance = 10;
+      controls.maxDistance = 78;
+      controls.dampingFactor = 0.06;
+
+      scene.add(new THREE.AmbientLight(0xb7c4d8, 0.42));
+      const moon = new THREE.DirectionalLight(0xdbeafe, 1.15);
+      moon.position.set(18, 34, 12);
+      moon.castShadow = true;
+      moon.shadow.mapSize.set(2048, 2048);
+      moon.shadow.camera.near = 4;
+      moon.shadow.camera.far = 90;
+      moon.shadow.camera.left = -40;
+      moon.shadow.camera.right = 40;
+      moon.shadow.camera.top = 40;
+      moon.shadow.camera.bottom = -40;
+      scene.add(moon);
+
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(mazeW + 28, mazeD + 28),
+        new THREE.MeshStandardMaterial({ color: 0x102016, roughness: 0.95 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(mazeW, mazeD),
+        new THREE.MeshStandardMaterial({ color: 0x1a2a1c, roughness: 0.9 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = 0.02;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const shared = {
+        body: new THREE.SphereGeometry(0.28, 16, 12),
+        head: new THREE.SphereGeometry(0.2, 14, 12),
+        ear: new THREE.ConeGeometry(0.075, 0.16, 8),
+        leg: new THREE.CylinderGeometry(0.045, 0.04, 0.22, 6),
+        tail: new THREE.CylinderGeometry(0.038, 0.028, 0.46, 7),
+        leaf: new THREE.SphereGeometry(0.07, 8, 6),
+        crown: new THREE.TorusGeometry(0.12, 0.025, 8, 16),
+        wall: new THREE.BoxGeometry(CELL * 0.96, 1, CELL * 0.96),
+        pad: new THREE.CylinderGeometry(CELL * 1.35, CELL * 1.45, 0.12, 20),
+        xBar: new THREE.BoxGeometry(CELL * 2.1, 0.16, 0.22),
+      };
+
+      const worldGroup = new THREE.Group();
+      scene.add(worldGroup);
+
+      const pauseBtn = document.getElementById("pause");
+      const restartBtn = document.getElementById("restart");
+      const speedInput = document.getElementById("speed");
+      const speedVal = document.getElementById("speed-val");
+      const clanStatus = document.getElementById("clan-status");
+      const banner = document.getElementById("banner");
+
+      const state = {
+        paused: false,
+        speed: 1,
+        grid: [],
+        dens: [],
+        cats: [],
+        walls: null,
+        wallDummy: new THREE.Object3D(),
+        t: 0,
+        over: false,
+      };
+
+      function shuffle(list) {
+        for (let i = list.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [list[i], list[j]] = [list[j], list[i]];
+        }
+        return list;
+      }
+
+      function cellCenter(r, c) {
+        return {
+          x: (c + 0.5) * CELL - mazeW / 2,
+          z: (r + 0.5) * CELL - mazeD / 2,
+        };
+      }
+
+      function inBounds(r, c) {
+        return r >= 0 && r < ROWS && c >= 0 && c < COLS;
+      }
+
+      function walkable(r, c) {
+        return inBounds(r, c) && state.grid[r][c] === 0;
+      }
+
+      function denOrigin(corner) {
+        if (corner === "nw") return { r: 1, c: 1 };
+        if (corner === "ne") return { r: 1, c: COLS - 1 - DEN_SIZE };
+        if (corner === "sw") return { r: ROWS - 1 - DEN_SIZE, c: 1 };
+        return { r: ROWS - 1 - DEN_SIZE, c: COLS - 1 - DEN_SIZE };
+      }
+
+      function generateMaze() {
+        const grid = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
+        const carve = (r, c) => {
+          grid[r][c] = 0;
+          const dirs = shuffle([
+            [0, 2],
+            [0, -2],
+            [2, 0],
+            [-2, 0],
+          ]);
+          for (const [dr, dc] of dirs) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr > 0 && nr < ROWS - 1 && nc > 0 && nc < COLS - 1 && grid[nr][nc] === 1) {
+              grid[r + dr / 2][c + dc / 2] = 0;
+              carve(nr, nc);
+            }
+          }
+        };
+        carve(1, 1);
+
+        const dens = CLANS.map((clan) => {
+          const origin = denOrigin(clan.corner);
+          const cells = [];
+          for (let r = origin.r; r < origin.r + DEN_SIZE; r++) {
+            for (let c = origin.c; c < origin.c + DEN_SIZE; c++) {
+              grid[r][c] = 0;
+              cells.push({ r, c });
+            }
+          }
+          const mid = cells[Math.floor(cells.length / 2)];
+          return {
+            ...clan,
+            origin,
+            cells,
+            mid,
+            eliminated: false,
+            respawnIn: 0,
+          };
+        });
+
+        state.grid = grid;
+        state.dens = dens;
+      }
+
+      function neighbors(r, c) {
+        const out = [];
+        for (const [dr, dc] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ]) {
+          const nr = r + dr;
+          const nc = c + dc;
+          if (walkable(nr, nc)) out.push({ r: nr, c: nc });
+        }
+        return out;
+      }
+
+      function heuristic(a, b) {
+        return Math.abs(a.r - b.r) + Math.abs(a.c - b.c);
+      }
+
+      function astar(start, goal) {
+        if (start.r === goal.r && start.c === goal.c) return [{ ...start }];
+        const key = (r, c) => `${r},${c}`;
+        const open = [{ r: start.r, c: start.c, g: 0, f: heuristic(start, goal) }];
+        const came = new Map();
+        const best = new Map([[key(start.r, start.c), 0]]);
+        const queued = new Set([key(start.r, start.c)]);
+
+        while (open.length) {
+          let bestI = 0;
+          for (let i = 1; i < open.length; i++) if (open[i].f < open[bestI].f) bestI = i;
+          const cur = open.splice(bestI, 1)[0];
+          queued.delete(key(cur.r, cur.c));
+          if (cur.r === goal.r && cur.c === goal.c) {
+            const path = [{ r: cur.r, c: cur.c }];
+            let k = key(cur.r, cur.c);
+            while (came.has(k)) {
+              const prev = came.get(k);
+              path.push(prev);
+              k = key(prev.r, prev.c);
+            }
+            path.reverse();
+            return path;
+          }
+          for (const n of neighbors(cur.r, cur.c)) {
+            const g = cur.g + 1;
+            const nk = key(n.r, n.c);
+            if (g < (best.get(nk) ?? Infinity)) {
+              came.set(nk, { r: cur.r, c: cur.c });
+              best.set(nk, g);
+              if (!queued.has(nk)) {
+                open.push({ r: n.r, c: n.c, g, f: g + heuristic(n, goal) });
+                queued.add(nk);
+              }
+            }
+          }
+        }
+        return null;
+      }
+
+      function randomWalkable(excludeDen = null) {
+        for (let n = 0; n < 80; n++) {
+          const r = 1 + Math.floor(Math.random() * (ROWS - 2));
+          const c = 1 + Math.floor(Math.random() * (COLS - 2));
+          if (!walkable(r, c)) continue;
+          if (excludeDen && excludeDen.cells.some((cell) => cell.r === r && cell.c === c)) continue;
+          return { r, c };
+        }
+        return { r: Math.floor(ROWS / 2), c: Math.floor(COLS / 2) };
+      }
+
+      function dist2(a, b) {
+        const dx = a.x - b.x;
+        const dz = a.z - b.z;
+        return dx * dx + dz * dz;
+      }
+
+      function liveCats() {
+        return state.cats.filter((cat) => !cat.dead && !cat.respawning);
+      }
+
+      function makeCatMesh(clan, role) {
+        const mat = new THREE.MeshStandardMaterial({
+          color: clan.color,
+          roughness: 0.48,
+          metalness: 0.08,
+        });
+        const dark = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(clan.color).multiplyScalar(0.45),
+          roughness: 0.55,
+        });
+        const group = new THREE.Group();
+        const body = new THREE.Mesh(shared.body, mat);
+        body.scale.set(1.12, 0.72, 1.65);
+        body.position.y = 0.34;
+        body.castShadow = true;
+        const head = new THREE.Mesh(shared.head, mat);
+        head.position.set(0, 0.5, 0.36);
+        head.castShadow = true;
+        const earL = new THREE.Mesh(shared.ear, mat);
+        const earR = new THREE.Mesh(shared.ear, mat);
+        earL.position.set(-0.1, 0.68, 0.32);
+        earR.position.set(0.1, 0.68, 0.32);
+        const tail = new THREE.Mesh(shared.tail, mat);
+        tail.position.set(0, 0.42, -0.46);
+        tail.rotation.x = 0.85;
+        const legs = [
+          [-0.14, 0.11, 0.2],
+          [0.14, 0.11, 0.2],
+          [-0.14, 0.11, -0.22],
+          [0.14, 0.11, -0.22],
+        ].map(([x, y, z]) => {
+          const leg = new THREE.Mesh(shared.leg, dark);
+          leg.position.set(x, y, z);
+          return leg;
+        });
+        group.add(body, head, earL, earR, tail, ...legs);
+        if (role === "leader") {
+          const crown = new THREE.Mesh(
+            shared.crown,
+            new THREE.MeshStandardMaterial({
+              color: 0xfacc15,
+              emissive: 0x854d0e,
+              roughness: 0.3,
+            })
+          );
+          crown.position.set(0, 0.58, 0.36);
+          crown.rotation.x = Math.PI / 2;
+          group.add(crown);
+          group.scale.setScalar(1.12);
+        }
+        if (role === "medicine") {
+          const leaf = new THREE.Mesh(
+            shared.leaf,
+            new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.4 })
+          );
+          leaf.position.set(0.16, 0.5, -0.05);
+          group.add(leaf);
+        }
+        group.userData.body = body;
+        group.userData.mat = mat;
+        return group;
+      }
+
+      function hpClass(hp) {
+        if (hp <= 3) return "low";
+        if (hp <= 7) return "mid";
+        return "";
+      }
+
+      function roleLabel(cat) {
+        if (cat.role === "medicine") return `Medicine cat ${cat.clanName}`;
+        if (cat.role === "leader") return `Leader ${cat.clanName}`;
+        return `Deputy ${cat.clanName}`;
+      }
+
+      function setCatLabel(cat) {
+        const hpKind = hpClass(cat.hp);
+        const lives =
+          cat.role === "leader" ? `<span class="lives">${cat.lives}</span>` : "";
+        cat.labelEl.innerHTML = `
+          <div class="role">${roleLabel(cat)}</div>
+          <div class="nums">
+            <span class="hp ${hpKind}">${cat.respawning || cat.dead ? 0 : cat.hp}</span>${lives}
+          </div>`;
+      }
+
+      function setDenLabel(den) {
+        let sub = "";
+        if (den.eliminated) sub = `<span class="x">✕</span>`;
+        else if (den.respawnIn > 0) {
+          sub = `<span class="sub">Leader returns in ${Math.ceil(den.respawnIn)}s</span>`;
+        }
+        den.labelEl.innerHTML = `<span class="name">${den.name}</span>${sub}`;
+        den.labelEl.classList.toggle("out", den.eliminated);
+        if (den.xMark) den.xMark.visible = den.eliminated;
+      }
+
+      function buildWalls() {
+        if (state.walls) {
+          worldGroup.remove(state.walls);
+          state.walls.dispose();
+        }
+        let count = 0;
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) if (state.grid[r][c] === 1) count++;
+        }
+        const mesh = new THREE.InstancedMesh(
+          shared.wall,
+          new THREE.MeshStandardMaterial({
+            color: 0x3f4f3c,
+            roughness: 0.82,
+          }),
+          count
+        );
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        let i = 0;
+        const color = new THREE.Color();
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            if (state.grid[r][c] !== 1) continue;
+            const { x, z } = cellCenter(r, c);
+            const h = 1.15 + ((r * 13 + c * 7) % 8) * 0.06;
+            state.wallDummy.position.set(x, h / 2, z);
+            state.wallDummy.scale.set(1, h, 1);
+            state.wallDummy.updateMatrix();
+            mesh.setMatrixAt(i, state.wallDummy.matrix);
+            color.setHSL(0.28, 0.22, 0.18 + ((r + c) % 5) * 0.03);
+            mesh.setColorAt(i, color);
+            i++;
+          }
+        }
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        worldGroup.add(mesh);
+        state.walls = mesh;
+      }
+
+      function buildDens() {
+        for (const den of state.dens) {
+          const mid = cellCenter(den.mid.r, den.mid.c);
+          const pad = new THREE.Mesh(
+            shared.pad,
+            new THREE.MeshStandardMaterial({
+              color: den.color,
+              emissive: den.color,
+              emissiveIntensity: 0.22,
+              roughness: 0.55,
+            })
+          );
+          pad.position.set(mid.x, 0.08, mid.z);
+          pad.receiveShadow = true;
+          worldGroup.add(pad);
+
+          const glow = new THREE.PointLight(den.color, 1.4, 7.5);
+          glow.position.set(mid.x, 1.4, mid.z);
+          worldGroup.add(glow);
+
+          const x = new THREE.Group();
+          const xMat = new THREE.MeshStandardMaterial({
+            color: 0xef4444,
+            emissive: 0x7f1d1d,
+            roughness: 0.4,
+          });
+          const a = new THREE.Mesh(shared.xBar, xMat);
+          const b = new THREE.Mesh(shared.xBar, xMat);
+          a.position.y = 1.15;
+          b.position.y = 1.15;
+          a.rotation.y = Math.PI / 4;
+          b.rotation.y = -Math.PI / 4;
+          x.add(a, b);
+          x.position.set(mid.x, 0, mid.z);
+          x.visible = false;
+          worldGroup.add(x);
+          den.xMark = x;
+
+          const labelEl = document.createElement("div");
+          labelEl.className = "den-tag";
+          labelEl.style.color = den.hex;
+          den.labelEl = labelEl;
+          const label = new CSS2DObject(labelEl);
+          label.position.set(mid.x, 0.02, mid.z);
+          worldGroup.add(label);
+          den.label = label;
+          den.world = mid;
+          setDenLabel(den);
+        }
+      }
+
+      function spawnCats() {
+        state.cats = [];
+        for (const den of state.dens) {
+          const roles = ["medicine", "leader", "deputy"];
+          const spots = shuffle(den.cells.slice());
+          roles.forEach((role, i) => {
+            const cell = spots[i % spots.length];
+            const pos = cellCenter(cell.r, cell.c);
+            const mesh = makeCatMesh(den, role);
+            mesh.position.set(pos.x, 0, pos.z);
+            worldGroup.add(mesh);
+
+            const labelEl = document.createElement("div");
+            labelEl.className = "tag";
+            const label = new CSS2DObject(labelEl);
+            label.position.set(0, 0.02, 0);
+            mesh.add(label);
+
+            const cat = {
+              id: `${den.id}-${role}`,
+              clanId: den.id,
+              clanName: den.name,
+              role,
+              color: den.color,
+              hp: START_HP,
+              lives: role === "leader" ? START_LIVES : 0,
+              dead: false,
+              respawning: false,
+              respawnIn: 0,
+              iframe: 1.1,
+              flash: 0,
+              r: cell.r,
+              c: cell.c,
+              x: pos.x,
+              z: pos.z,
+              path: [],
+              pathI: 0,
+              rethink: 0.2 + Math.random(),
+              facing: 0,
+              mesh,
+              label,
+              labelEl,
+              den,
+            };
+            setCatLabel(cat);
+            state.cats.push(cat);
+          });
+        }
+      }
+
+      function hideCat(cat, hidden) {
+        cat.mesh.visible = !hidden;
+        cat.label.visible = !hidden;
+      }
+
+      function placeCat(cat, cell) {
+        const pos = cellCenter(cell.r, cell.c);
+        cat.r = cell.r;
+        cat.c = cell.c;
+        cat.x = pos.x;
+        cat.z = pos.z;
+        cat.mesh.position.set(pos.x, 0, pos.z);
+        cat.path = [];
+        cat.pathI = 0;
+      }
+
+      function despawn(cat) {
+        cat.dead = true;
+        cat.hp = 0;
+        cat.respawning = false;
+        hideCat(cat, true);
+        setCatLabel(cat);
+      }
+
+      function wipeClan(clanId) {
+        const den = state.dens.find((d) => d.id === clanId);
+        for (const cat of state.cats) {
+          if (cat.clanId === clanId) despawn(cat);
+        }
+        if (den) {
+          den.eliminated = true;
+          den.respawnIn = 0;
+          setDenLabel(den);
+        }
+      }
+
+      function startLeaderRespawn(cat) {
+        cat.respawning = true;
+        cat.respawnIn = RESPAWN_S;
+        cat.hp = 0;
+        cat.path = [];
+        hideCat(cat, true);
+        cat.den.respawnIn = RESPAWN_S;
+        setCatLabel(cat);
+        setDenLabel(cat.den);
+      }
+
+      function finishLeaderRespawn(cat) {
+        cat.respawning = false;
+        cat.hp = START_HP;
+        cat.iframe = 1.6;
+        cat.den.respawnIn = 0;
+        placeCat(cat, cat.den.mid);
+        hideCat(cat, false);
+        setCatLabel(cat);
+        setDenLabel(cat.den);
+      }
+
+      function applyDamage(cat) {
+        if (cat.dead || cat.respawning || cat.iframe > 0) return false;
+        cat.hp -= 1;
+        cat.iframe = HIT_IFRAME;
+        cat.flash = 0.22;
+        if (cat.hp <= 0) {
+          if (cat.role === "leader") {
+            if (cat.lives <= 0) wipeClan(cat.clanId);
+            else {
+              cat.lives -= 1;
+              startLeaderRespawn(cat);
+            }
+          } else despawn(cat);
+        }
+        if (!cat.dead) setCatLabel(cat);
+        return true;
+      }
+
+      function heal(cat) {
+        if (cat.dead || cat.respawning) return;
+        cat.hp = START_HP;
+        cat.flash = -0.2;
+        setCatLabel(cat);
+      }
+
+      function pickGoal(cat) {
+        const allies = liveCats().filter((c) => c.clanId === cat.clanId && c !== cat);
+        const enemies = liveCats().filter((c) => c.clanId !== cat.clanId);
+        const cellOf = (other) => ({ r: other.r, c: other.c });
+
+        if (cat.role === "medicine") {
+          const injured = allies.filter((c) => c.hp < START_HP);
+          if (injured.length) {
+            injured.sort((a, b) => dist2(cat, a) - dist2(cat, b));
+            return cellOf(injured[0]);
+          }
+          if (Math.random() < 0.55) {
+            return cat.den.cells[Math.floor(Math.random() * cat.den.cells.length)];
+          }
+          return randomWalkable();
+        }
+
+        const med = allies.find((c) => c.role === "medicine");
+        if (cat.hp <= 6 && med) return cellOf(med);
+        if (cat.hp <= 4) {
+          return cat.den.cells[Math.floor(Math.random() * cat.den.cells.length)];
+        }
+
+        if (enemies.length) {
+          enemies.sort((a, b) => dist2(cat, a) - dist2(cat, b));
+          const near = enemies[0];
+          const manhattan = Math.abs(near.r - cat.r) + Math.abs(near.c - cat.c);
+          if (manhattan <= 14) return cellOf(near);
+        }
+        return randomWalkable(cat.den);
+      }
+
+      function retarget(cat) {
+        const goal = pickGoal(cat);
+        const path = astar({ r: cat.r, c: cat.c }, goal);
+        cat.path = path && path.length ? path : [];
+        cat.pathI = 1;
+        cat.rethink = 1.6 + Math.random() * 1.8;
+      }
+
+      function moveCat(cat, dt) {
+        cat.rethink -= dt;
+        if (cat.rethink <= 0 || !cat.path) retarget(cat);
+        if (!cat.path || cat.pathI >= cat.path.length) return;
+
+        const next = cat.path[cat.pathI];
+        if (!walkable(next.r, next.c)) {
+          retarget(cat);
+          return;
+        }
+        const target = cellCenter(next.r, next.c);
+        const dx = target.x - cat.x;
+        const dz = target.z - cat.z;
+        const dist = Math.hypot(dx, dz);
+        const speed = (cat.role === "leader" ? 2.55 : cat.role === "medicine" ? 2.05 : 2.3) * state.speed;
+        if (dist < 0.08) {
+          cat.r = next.r;
+          cat.c = next.c;
+          cat.x = target.x;
+          cat.z = target.z;
+          cat.pathI += 1;
+        } else {
+          const step = Math.min(dist, speed * dt);
+          cat.x += (dx / dist) * step;
+          cat.z += (dz / dist) * step;
+          cat.facing = Math.atan2(dx, dz);
+        }
+        const bob = Math.sin(state.t * 11 + cat.x) * 0.025;
+        cat.mesh.position.set(cat.x, bob, cat.z);
+        cat.mesh.rotation.y = cat.facing;
+      }
+
+      function resolveCollisions() {
+        const cats = liveCats();
+        const hitPairs = [];
+        const healPairs = [];
+        const reach = (CAT_RADIUS * 2) ** 2;
+
+        for (let i = 0; i < cats.length; i++) {
+          for (let j = i + 1; j < cats.length; j++) {
+            const a = cats[i];
+            const b = cats[j];
+            if (dist2(a, b) > reach) continue;
+            if (a.clanId !== b.clanId) hitPairs.push([a, b]);
+            else {
+              const med = a.role === "medicine" ? a : b.role === "medicine" ? b : null;
+              const other = med === a ? b : a;
+              if (med && other.role !== "medicine" && other.hp <= 9 && other.hp > 0) {
+                healPairs.push(other);
+              }
+            }
+          }
+        }
+
+        for (const [a, b] of hitPairs) {
+          if (a.dead || b.dead || a.respawning || b.respawning) continue;
+          if (a.iframe > 0 || b.iframe > 0) continue;
+          applyDamage(a);
+          applyDamage(b);
+        }
+        for (const cat of healPairs) {
+          if (!cat.dead && !cat.respawning && cat.hp > 0 && cat.hp <= 9) heal(cat);
+        }
+      }
+
+      function updateStatus() {
+        clanStatus.innerHTML = CLANS.map((clan) => {
+          const den = state.dens.find((d) => d.id === clan.id);
+          const members = state.cats.filter((c) => c.clanId === clan.id);
+          const living = members.filter((c) => !c.dead);
+          const leader = members.find((c) => c.role === "leader");
+          let meta = "wiped";
+          if (!den?.eliminated) {
+            const bits = living.map((c) => {
+              if (c.role === "leader") {
+                return c.respawning
+                  ? `Leader respawn ${Math.ceil(c.respawnIn)}s (${c.lives})`
+                  : `Leader ${c.hp} ${c.lives}`;
+              }
+              if (c.role === "medicine") return `Med ${c.hp}`;
+              return `Deputy ${c.hp}`;
+            });
+            meta = bits.join(" · ") || "wiped";
+          }
+          return `<div class="clan ${den?.eliminated ? "dead" : ""}">
+            <span class="swatch" style="background:${clan.hex}"></span>
+            <b>${clan.name}${den?.eliminated ? " ✕" : ""}</b>
+            <span class="meta">${meta}</span>
+          </div>`;
+        }).join("");
+
+        const aliveClans = state.dens.filter((d) => !d.eliminated);
+        if (!state.over && aliveClans.length <= 1) {
+          state.over = true;
+          if (aliveClans.length === 1) {
+            banner.textContent = `${aliveClans[0].name} holds the maze`;
+          } else {
+            banner.textContent = "No clan remains";
+          }
+          banner.classList.add("show");
+        }
+      }
+
+      function clearWorld() {
+        for (const cat of state.cats) cat.labelEl?.remove();
+        for (const den of state.dens) den.labelEl?.remove();
+        while (worldGroup.children.length) {
+          const child = worldGroup.children[0];
+          worldGroup.remove(child);
+        }
+        state.walls = null;
+        state.cats = [];
+        banner.classList.remove("show");
+        state.over = false;
+      }
+
+      function plantTrees() {
+        const trunkGeo = new THREE.CylinderGeometry(0.18, 0.24, 1.1, 6);
+        const crownGeo = new THREE.ConeGeometry(0.95, 2.1, 8);
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1a, roughness: 0.9 });
+        const crownMat = new THREE.MeshStandardMaterial({ color: 0x16351c, roughness: 0.7 });
+        const halfW = mazeW / 2 + 3.2;
+        const halfD = mazeD / 2 + 3.2;
+        for (let i = 0; i < 42; i++) {
+          const side = i % 4;
+          let x = 0;
+          let z = 0;
+          if (side === 0) {
+            x = -halfW - Math.random() * 6;
+            z = (Math.random() - 0.5) * (mazeD + 10);
+          } else if (side === 1) {
+            x = halfW + Math.random() * 6;
+            z = (Math.random() - 0.5) * (mazeD + 10);
+          } else if (side === 2) {
+            z = -halfD - Math.random() * 6;
+            x = (Math.random() - 0.5) * (mazeW + 10);
+          } else {
+            z = halfD + Math.random() * 6;
+            x = (Math.random() - 0.5) * (mazeW + 10);
+          }
+          const g = new THREE.Group();
+          const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+          trunk.position.y = 0.55;
+          const crown = new THREE.Mesh(crownGeo, crownMat);
+          crown.position.y = 1.85;
+          g.add(trunk, crown);
+          g.position.set(x, 0, z);
+          g.scale.setScalar(0.85 + Math.random() * 0.5);
+          worldGroup.add(g);
+        }
+      }
+
+      function reset() {
+        clearWorld();
+        generateMaze();
+        buildWalls();
+        buildDens();
+        plantTrees();
+        spawnCats();
+        updateStatus();
+      }
+
+      function tick(dt) {
+        if (state.paused) return;
+        const step = Math.min(dt, 0.05) * state.speed;
+        state.t += step;
+
+        for (const cat of state.cats) {
+          if (cat.dead) continue;
+          if (cat.iframe > 0) cat.iframe = Math.max(0, cat.iframe - step);
+          if (cat.flash !== 0) {
+            const mat = cat.mesh.userData.mat;
+            if (mat) {
+              mat.emissive.setHex(cat.flash > 0 ? 0xaa2222 : 0x22aa55);
+              mat.emissiveIntensity = Math.abs(cat.flash) * 4;
+            }
+            cat.flash = cat.flash > 0 ? Math.max(0, cat.flash - step) : Math.min(0, cat.flash + step);
+            if (cat.flash === 0 && mat) {
+              mat.emissive.setHex(0x000000);
+              mat.emissiveIntensity = 0;
+            }
+          }
+          if (cat.respawning) {
+            cat.respawnIn -= step;
+            cat.den.respawnIn = cat.respawnIn;
+            if (cat.respawnIn <= 0) finishLeaderRespawn(cat);
+            else if (Math.floor(cat.respawnIn * 4) !== Math.floor((cat.respawnIn + step) * 4)) {
+              setDenLabel(cat.den);
+              updateStatus();
+            }
+            continue;
+          }
+          moveCat(cat, step);
+        }
+
+        resolveCollisions();
+        updateStatus();
+      }
+
+      pauseBtn.addEventListener("click", () => {
+        state.paused = !state.paused;
+        pauseBtn.textContent = state.paused ? "Resume" : "Pause";
+        pauseBtn.classList.toggle("active", state.paused);
+      });
+      restartBtn.addEventListener("click", reset);
+      speedInput.addEventListener("input", () => {
+        state.speed = Number(speedInput.value);
+        speedVal.textContent = `${state.speed}×`;
+      });
+      addEventListener("keydown", (e) => {
+        if (e.code === "Space") {
+          e.preventDefault();
+          pauseBtn.click();
+        }
+        if (e.code === "KeyR") reset();
+      });
+      addEventListener("resize", () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+        labelRenderer.setSize(innerWidth, innerHeight);
+      });
+
+      const clock = new THREE.Clock();
+      reset();
+      renderer.setAnimationLoop(() => {
+        tick(clock.getDelta());
+        controls.update();
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
+      });
+    </script>
+  </body>
+</html>
