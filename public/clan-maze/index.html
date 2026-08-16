@@ -30,10 +30,10 @@
       }
       .hud {
         position: fixed;
-        inset: 1rem auto auto 1rem;
+        inset: 1rem 1rem auto auto;
         z-index: 3;
-        width: min(23.5rem, calc(100vw - 2rem));
-        padding: 1rem 1.1rem 1.05rem;
+        width: min(22rem, calc(100vw - 2rem));
+        padding: 0.85rem 1rem 0.9rem;
         border: 1px solid #243044;
         border-radius: 14px;
         background: rgba(8, 12, 20, 0.82);
@@ -158,7 +158,7 @@
           0 1px 2px #000,
           0 0 8px #000;
         white-space: nowrap;
-        transform: translate(-50%, 10px);
+        transform: translate(-50%, 22px);
         user-select: none;
         pointer-events: none;
       }
@@ -192,7 +192,7 @@
         text-shadow:
           0 1px 2px #000,
           0 0 10px #000;
-        transform: translate(-50%, 16px);
+        transform: translate(-50%, 28px);
         white-space: nowrap;
         pointer-events: none;
         user-select: none;
@@ -251,12 +251,12 @@
       const ROWS = 31;
       const COLS = 31;
       const CELL = 1.55;
-      const DEN_SIZE = 3;
+      const DEN_SIZE = 4;
       const START_HP = 10;
       const START_LIVES = 9;
       const RESPAWN_S = 10;
       const HIT_IFRAME = 0.85;
-      const CAT_RADIUS = 0.42;
+      const CAT_RADIUS = 0.52;
 
       const CLANS = [
         {
@@ -544,6 +544,8 @@
       function makeCatMesh(clan, role) {
         const mat = new THREE.MeshStandardMaterial({
           color: clan.color,
+          emissive: clan.color,
+          emissiveIntensity: 0.18,
           roughness: 0.48,
           metalness: 0.08,
         });
@@ -553,19 +555,19 @@
         });
         const group = new THREE.Group();
         const body = new THREE.Mesh(shared.body, mat);
-        body.scale.set(1.12, 0.72, 1.65);
-        body.position.y = 0.34;
+        body.scale.set(1.25, 0.78, 1.95);
+        body.position.y = 0.38;
         body.castShadow = true;
         const head = new THREE.Mesh(shared.head, mat);
-        head.position.set(0, 0.5, 0.36);
+        head.position.set(0, 0.56, 0.44);
         head.castShadow = true;
         const earL = new THREE.Mesh(shared.ear, mat);
         const earR = new THREE.Mesh(shared.ear, mat);
-        earL.position.set(-0.1, 0.68, 0.32);
-        earR.position.set(0.1, 0.68, 0.32);
+        earL.position.set(-0.12, 0.76, 0.4);
+        earR.position.set(0.12, 0.76, 0.4);
         const tail = new THREE.Mesh(shared.tail, mat);
-        tail.position.set(0, 0.42, -0.46);
-        tail.rotation.x = 0.85;
+        tail.position.set(0, 0.5, -0.58);
+        tail.rotation.x = 0.95;
         const legs = [
           [-0.14, 0.11, 0.2],
           [0.14, 0.11, 0.2],
@@ -586,10 +588,10 @@
               roughness: 0.3,
             })
           );
-          crown.position.set(0, 0.58, 0.36);
+          crown.position.set(0, 0.64, 0.44);
           crown.rotation.x = Math.PI / 2;
           group.add(crown);
-          group.scale.setScalar(1.12);
+          group.scale.setScalar(1.22);
         }
         if (role === "medicine") {
           const leaf = new THREE.Mesh(
@@ -682,7 +684,7 @@
         for (const den of state.dens) {
           const mid = cellCenter(den.mid.r, den.mid.c);
           const pad = new THREE.Mesh(
-            shared.pad,
+            new THREE.CylinderGeometry(CELL * 1.7, CELL * 1.85, 0.12, 24),
             new THREE.MeshStandardMaterial({
               color: den.color,
               emissive: den.color,
@@ -733,9 +735,13 @@
         state.cats = [];
         for (const den of state.dens) {
           const roles = ["medicine", "leader", "deputy"];
-          const spots = shuffle(den.cells.slice());
+          const spots = [
+            den.cells[0],
+            den.cells[DEN_SIZE - 1],
+            den.cells[DEN_SIZE * (DEN_SIZE - 1)],
+          ];
           roles.forEach((role, i) => {
-            const cell = spots[i % spots.length];
+            const cell = spots[i];
             const pos = cellCenter(cell.r, cell.c);
             const mesh = makeCatMesh(den, role);
             mesh.position.set(pos.x, 0, pos.z);
@@ -1076,12 +1082,12 @@
             const mat = cat.mesh.userData.mat;
             if (mat) {
               mat.emissive.setHex(cat.flash > 0 ? 0xaa2222 : 0x22aa55);
-              mat.emissiveIntensity = Math.abs(cat.flash) * 4;
+              mat.emissiveIntensity = 0.18 + Math.abs(cat.flash) * 4;
             }
             cat.flash = cat.flash > 0 ? Math.max(0, cat.flash - step) : Math.min(0, cat.flash + step);
             if (cat.flash === 0 && mat) {
-              mat.emissive.setHex(0x000000);
-              mat.emissiveIntensity = 0;
+              mat.emissive.setHex(cat.color);
+              mat.emissiveIntensity = 0.18;
             }
           }
           if (cat.respawning) {
