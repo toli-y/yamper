@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Trunk-based development
 
-`main` is the only long-lived branch. Cloudflare Pages deploys production from `main` on every push.
+`main` is the only long-lived branch. Cloudflare deploys production from `main` on every push.
 
 ## After every iteration
 

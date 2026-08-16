@@ -39,7 +39,7 @@ jobs:
           gh pr comment "$PR" --repo "$REPO" --body "$(cat <<'EOF'
           Squash-merged into `main` (trunk-based workflow).
 
-          Cloudflare Pages will pick up this revision from `main` and publish it automatically.
+          Cloudflare will pick up this revision from `main` and publish it automatically.
           Continue the next iteration from the latest `origin/main`, not from this merged branch.
           EOF
           )"
