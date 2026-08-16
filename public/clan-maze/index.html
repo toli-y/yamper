@@ -50,10 +50,24 @@
         letter-spacing: 0.02em;
       }
       .lede {
-        margin: 0 0 0.85rem;
+        margin: 0 0 0.55rem;
         color: #94a3b8;
         font-size: 0.8rem;
         line-height: 1.4;
+      }
+      .perks {
+        margin: 0 0 0.85rem;
+        padding-left: 1.15rem;
+        font-size: 0.72rem;
+        line-height: 1.4;
+        color: #94a3b8;
+      }
+      .perks li {
+        margin: 0.12rem 0;
+      }
+      .perks b {
+        color: #e2e8f0;
+        font-weight: 650;
       }
       .clans {
         display: grid;
@@ -378,6 +392,12 @@
         home usually raises a warrior, with a 10% chance of a deputy and a 5% chance of
         a medicine cat.
       </p>
+      <ul class="perks">
+        <li><b>ThunderClan</b> — 40% extra warrior when a deputy or leader brings prey home.</li>
+        <li><b>ShadowClan</b> — at night, 50% chance to deal 3 damage instead of 1.</li>
+        <li><b>WindClan</b> — 1.5× faster than the other clans.</li>
+        <li><b>RiverClan</b> — 20% chance to take no damage from an enemy warrior.</li>
+      </ul>
       <div class="mode-row">
         <button id="mode-watch" class="active" type="button">Watch</button>
         <button id="mode-play" type="button">Play</button>
@@ -1578,6 +1598,9 @@
         if (roll < 0.1) role = "deputy";
         else if (roll < 0.15) role = "medicine";
         if (!spawnAtDen(cat.den, role)) spawnAtDen(cat.den, "warrior");
+        if (cat.clanId === "thunder" && Math.random() < 0.4) {
+          spawnAtDen(cat.den, "warrior");
+        }
         cat.flash = -0.2;
         cat.path = [];
         cat.rethink = 0.15;
@@ -1668,11 +1691,37 @@
         setDenLabel(cat.den);
       }
 
-      function applyDamage(cat) {
+      function isNight() {
+        if (state.timeMode === "night") return true;
+        if (state.timeMode === "day") return false;
+        return dayAmountFromCycle(state.cycleT) < 0.5;
+      }
+
+      function hitDamage(attacker) {
+        if (attacker && attacker.clanId === "shadow" && isNight() && Math.random() < 0.5) {
+          return 3;
+        }
+        return 1;
+      }
+
+      function applyDamage(cat, attacker) {
         if (cat.dead || cat.respawning || cat.iframe > 0) return false;
-        cat.hp -= 1;
+        if (
+          cat.clanId === "river" &&
+          attacker &&
+          attacker.role === "warrior" &&
+          attacker.clanId !== cat.clanId &&
+          Math.random() < 0.2
+        ) {
+          cat.iframe = HIT_IFRAME;
+          cat.flash = -0.18;
+          if (!cat.dead) setCatLabel(cat);
+          return false;
+        }
+        const dmg = hitDamage(attacker);
+        cat.hp -= dmg;
         cat.iframe = HIT_IFRAME;
-        cat.flash = 0.22;
+        cat.flash = dmg > 1 ? 0.38 : 0.22;
         if (cat.hp <= 0) {
           dropCarried(cat);
           cat.playerTarget = null;
@@ -1898,8 +1947,12 @@
         controls.target.add(lookPan);
       }
 
+      function clanSpeedMul(cat) {
+        return cat.clanId === "wind" ? 1.5 : 1;
+      }
+
       function movePlayer(cat, dt) {
-        const speed = 2.85 * state.speed;
+        const speed = 2.85 * clanSpeedMul(cat) * state.speed;
         const atCenter = (() => {
           const here = cellCenter(cat.r, cat.c);
           return Math.hypot(cat.x - here.x, cat.z - here.z) < 0.1;
@@ -1963,7 +2016,10 @@
         const dx = target.x - cat.x;
         const dz = target.z - cat.z;
         const dist = Math.hypot(dx, dz);
-        const speed = (cat.role === "leader" ? 2.55 : cat.role === "medicine" ? 2.05 : 2.3) * state.speed;
+        const speed =
+          (cat.role === "leader" ? 2.55 : cat.role === "medicine" ? 2.05 : 2.3) *
+          clanSpeedMul(cat) *
+          state.speed;
         if (dist < 0.08) {
           cat.r = next.r;
           cat.c = next.c;
@@ -2004,8 +2060,8 @@
         for (const [a, b] of hitPairs) {
           if (a.dead || b.dead || a.respawning || b.respawning) continue;
           if (a.iframe > 0 || b.iframe > 0) continue;
-          applyDamage(a);
-          applyDamage(b);
+          applyDamage(a, b);
+          applyDamage(b, a);
         }
         for (const cat of healPairs) {
           if (!cat.dead && !cat.respawning && cat.hp > 0 && cat.hp <= 9) heal(cat);
