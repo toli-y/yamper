@@ -6,39 +6,75 @@
     <title>yamper</title>
     <style>
       :root {
-        color-scheme: light dark;
+        color-scheme: dark;
         font-family: ui-sans-serif, system-ui, sans-serif;
       }
       body {
         margin: 0;
         min-height: 100vh;
-        display: grid;
-        place-items: center;
         background: #0f172a;
         color: #e2e8f0;
       }
       main {
-        max-width: 36rem;
-        padding: 2rem;
+        max-width: 48rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem;
       }
       h1 {
         margin: 0 0 0.5rem;
         font-size: 2rem;
       }
-      p {
-        margin: 0;
+      .lede {
+        margin: 0 0 2rem;
         line-height: 1.5;
         color: #cbd5e1;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.75rem 0.5rem;
+        border-bottom: 1px solid #334155;
+        vertical-align: top;
+      }
+      th {
+        color: #94a3b8;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      a {
+        color: #7dd3fc;
+      }
+      .empty {
+        color: #94a3b8;
       }
     </style>
   </head>
   <body>
     <main>
       <h1>yamper</h1>
-      <p>
-        Public site served from <code>main</code>. Cloudflare Pages publishes
-        each merge automatically.
+      <p class="lede">
+        Browser games. Each project is a single HTML page.
       </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Description</th>
+            <th>Play</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="3" class="empty">No projects yet.</td>
+          </tr>
+        </tbody>
+      </table>
     </main>
   </body>
 </html>
