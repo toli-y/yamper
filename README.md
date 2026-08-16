@@ -28,9 +28,12 @@ agent iteration
   → PR targeting main
   → GitHub Action squash-merges to main
   → Cloudflare deploys the public site from main
+  → reply with a link to the live app
 ```
 
 `.github/workflows/merge-to-trunk.yml` squash-merges every `cursor/*` PR into `main` after it is opened or updated. Add the `do-not-merge` label to skip that for a specific PR.
+
+After each iteration the agent must give the user a link to open the updated app, for example `https://yamper.anatoly-yevtushenko.workers.dev/<project-slug>/`.
 
 ## One-time dashboard setup
 

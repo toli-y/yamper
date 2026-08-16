@@ -33,6 +33,7 @@ When finishing work on a prompt:
 1. Create or update `public/<project-slug>/index.html` so the game is playable in a browser.
 2. Update `public/index.html` so the hub table of contents lists every project and links to its landing page (`/<project-slug>/`). Add a row for a new project; keep title and short description in sync if they changed.
 3. Then follow the trunk-based merge workflow.
+4. In the user-facing reply, include a clickable markdown link to the live app: `https://yamper.anatoly-yevtushenko.workers.dev/<project-slug>/`. If the hub changed, also link `https://yamper.anatoly-yevtushenko.workers.dev/`. Do not finish an iteration without that view link.
 
 ## Technical guidelines
 
