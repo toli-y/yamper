@@ -284,9 +284,14 @@
           0 1px 2px #000,
           0 0 8px #000;
         white-space: nowrap;
-        transform: translate(-50%, 28px);
+        transform: translate(-50%, 32px);
         user-select: none;
         pointer-events: none;
+      }
+      .tag .catname {
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        color: #fde68a;
       }
       .tag .role {
         font-weight: 700;
@@ -607,7 +612,51 @@
         held: { up: false, down: false, left: false, right: false },
         lookHeld: { up: false, down: false, left: false, right: false },
         lastLookDir: null,
+        usedNames: new Set(),
       };
+
+      const NAME_PREFIX = [
+        "Fire", "Gray", "Sand", "Crow", "Bramble", "Squirrel", "Holly", "Lion",
+        "Jay", "Leaf", "Cinder", "Thorn", "Dust", "Cloud", "Rain", "Storm",
+        "Night", "Shadow", "Owl", "Hawk", "Fox", "Badger", "Mouse", "Fern",
+        "Ivy", "Willow", "Birch", "Ash", "Ember", "Frost", "Ice", "Snow",
+        "White", "Black", "Golden", "Silver", "Red", "Blue", "Spotted",
+        "Dapple", "Tall", "Swift", "Bright", "Dark", "Running", "Tiger",
+        "Rowan", "Russet", "Heather", "Gorse", "Hare", "Mist", "Stone",
+        "Reed", "Ripple", "Moss", "Oak", "Pine", "Cedar", "Alder", "Poppy",
+        "Daisy", "Tawny", "Amber", "Honey", "Moth", "Spider", "Soot", "Smoke",
+        "Flint", "Pebble", "Sun", "Moon", "Raven", "Dove", "Kestrel", "Bracken",
+        "Cedar", "Maple", "Hazel", "Lark", "Robin", "Otter", "Minnow", "Pike",
+      ];
+      const NAME_SUFFIX = [
+        "heart", "fur", "pelt", "stripe", "tail", "claw", "fang", "whisker",
+        "storm", "wind", "stream", "pool", "song", "leap", "foot", "nose",
+        "ear", "eye", "shade", "light", "blaze", "spark", "petal", "leaf",
+        "berry", "cloud", "sky", "moon", "stone", "fall", "splash", "mist",
+        "frost", "feather", "wing", "breeze", "mask", "spot", "throat", "tuft",
+        "step", "shade", "bloom", "wish", "watch",
+      ];
+
+      function pickCatName(role) {
+        if (!state.usedNames) state.usedNames = new Set();
+        for (let n = 0; n < 100; n++) {
+          const prefix = NAME_PREFIX[Math.floor(Math.random() * NAME_PREFIX.length)];
+          let name;
+          if (role === "leader") name = `${prefix}star`;
+          else {
+            const suffix = NAME_SUFFIX[Math.floor(Math.random() * NAME_SUFFIX.length)];
+            if (prefix.toLowerCase() === suffix) continue;
+            name = `${prefix}${suffix}`;
+          }
+          const key = name.toLowerCase();
+          if (state.usedNames.has(key)) continue;
+          state.usedNames.add(key);
+          return name;
+        }
+        const fallback = role === "leader" ? `Loststar${state.spawnSeq}` : `Lostheart${state.spawnSeq}`;
+        state.usedNames.add(fallback.toLowerCase());
+        return fallback;
+      }
 
       function shuffle(list) {
         for (let i = list.length - 1; i > 0; i--) {
@@ -928,6 +977,7 @@
         const lives =
           cat.role === "leader" ? `<span class="lives">${cat.lives}</span>` : "";
         cat.labelEl.innerHTML = `
+          <div class="catname">${cat.catName || ""}</div>
           <div class="role">${roleLabel(cat)}</div>
           <div class="nums">
             <span class="hp ${hpKind}">${cat.respawning || cat.dead ? 0 : cat.hp}</span>${lives}
@@ -1247,6 +1297,7 @@
           patrolUntil: extra.patrolUntil ?? (role === "deputy" ? 5 + Math.random() * 7 : 0),
           player: extra.player ?? false,
           playerTarget: null,
+          catName: extra.catName || pickCatName(role),
           mesh,
           label,
           labelEl,
@@ -1925,6 +1976,7 @@
         state.prey = [];
         state.preySpawnIn = 1.4;
         state.spawnSeq = 1;
+        state.usedNames = new Set();
         banner.classList.remove("show");
         state.over = false;
       }
