@@ -1,6 +1,6 @@
 # Agent instructions
 
-This repository uses **trunk-based development**. `main` is trunk. Cloudflare Pages deploys the public site from `main` whenever it moves.
+This repository uses **trunk-based development**. `main` is trunk. Cloudflare deploys the public site from `main` whenever it moves.
 
 ## Git workflow
 
@@ -17,4 +17,4 @@ To hold a PR open, add the `do-not-merge` label. Only do that when the user asks
 
 ## Public site
 
-Static files live in `public/`. Cloudflare Pages serves that directory from `main`. After a merge, the production URL updates without any extra deploy step from the agent.
+Static files live in `public/`. `wrangler.toml` deploys them as a Workers assets-only project (`wrangler deploy`, not `wrangler pages deploy`). After a merge, Cloudflare publishes the new revision automatically.
