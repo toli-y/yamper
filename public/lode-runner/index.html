@@ -1165,11 +1165,11 @@
       function bind() {
         addEventListener("keydown", (e) => {
           const k = e.key.toLowerCase();
-          if (["arrowleft", "arrowright", "arrowup", "arrowdown", " "].includes(k) || k.length === 1) {
+          if (["arrowleft", "arrowright", "arrowup", "arrowdown", " "].includes(k) || e.code === "Space" || k.length === 1) {
             e.preventDefault();
           }
           keys.add(k);
-          if (!e.repeat && k === " ") {
+          if (!e.repeat && (k === " " || e.code === "Space")) {
             if (state !== "play") bannerBtn.click();
             else digQueue = runner?.facing || 1;
           }
@@ -1184,7 +1184,7 @@
         addEventListener("resize", () => {
           renderer.setSize(innerWidth, innerHeight);
         });
-        bannerBtn.addEventListener("click", () => {
+        function startRun() {
           if (audioCtx) audioCtx.resume();
           else {
             try {
@@ -1202,7 +1202,8 @@
             loadStage(0, false);
           }
           state = "play";
-        });
+        }
+        bannerBtn.addEventListener("click", startRun);
         document.querySelectorAll(".touch [data-dir]").forEach((btn) => {
           const dir = btn.getAttribute("data-dir");
           const on = () => {
@@ -1227,8 +1228,13 @@
         });
       }
 
-      loadStage(0, false);
       bind();
+      try {
+        loadStage(0, false);
+      } catch (err) {
+        console.error(err);
+        bannerCopy.textContent = "Could not load Stage 1. Try refresh. " + err;
+      }
       tick();
     </script>
   </body>

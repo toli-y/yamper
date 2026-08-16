@@ -8,6 +8,7 @@ function assets(THREE) {
     new THREE.MeshLambertMaterial({ color: hex, flatShading: true });
 
   a = {
+    THREE,
     unit: new THREE.BoxGeometry(1, 1, 1),
     mat: {
       brickFace: lambert(0xd05030),
@@ -25,21 +26,21 @@ function assets(THREE) {
   return a;
 }
 
-function box(group, geo, mat, w, h, d, x, y, z) {
-  const mesh = new THREE.Mesh(geo, mat);
+function box(group, a, mat, w, h, d, x, y, z) {
+  const mesh = new a.THREE.Mesh(a.unit, mat);
   mesh.scale.set(w, h, d);
   mesh.position.set(x, y, z);
   group.add(mesh);
   return mesh;
 }
 
-function bevelCell(group, geo, faceMat, bodyMat, w, h, x, y, z, depth, bevel) {
+function bevelCell(group, a, faceMat, bodyMat, w, h, x, y, z, depth, bevel) {
   const bodyD = depth * 0.72;
   const faceD = depth * 0.42;
-  box(group, geo, bodyMat, w, h, bodyD, x, y, z - depth * 0.12);
+  box(group, a, bodyMat, w, h, bodyD, x, y, z - depth * 0.12);
   box(
     group,
-    geo,
+    a,
     faceMat,
     Math.max(w - bevel * 2, 0.04),
     Math.max(h - bevel * 2, 0.04),
@@ -66,7 +67,7 @@ function waffle(group, a, opts) {
     cellZ,
   } = opts;
 
-  box(group, a.unit, groutMat, 1, 1, groutD, 0, 0, groutZ);
+  box(group, a, groutMat, 1, 1, groutD, 0, 0, groutZ);
 
   const innerW = 1 - margin * 2;
   const innerH = 1 - margin * 2;
@@ -77,7 +78,7 @@ function waffle(group, a, opts) {
     for (let i = 0; i < cols; i++) {
       const x = -innerW * 0.5 + bw * 0.5 + i * (bw + groove);
       const y = innerH * 0.5 - bh * 0.5 - j * (bh + groove);
-      bevelCell(group, a.unit, faceMat, bodyMat, bw, bh, x, y, cellZ, cellD, bevel);
+      bevelCell(group, a, faceMat, bodyMat, bw, bh, x, y, cellZ, cellD, bevel);
     }
   }
 }
@@ -103,7 +104,7 @@ function assembleBrick(THREE, kind) {
   });
 
   if (kind === "trap") {
-    box(group, a.unit, a.mat.trapUnder, 0.9, 0.045, 0.48, 0, -0.458, -0.12);
+    box(group, a, a.mat.trapUnder, 0.9, 0.045, 0.48, 0, -0.458, -0.12);
   }
 
   return group;
@@ -144,14 +145,14 @@ export function makePit(THREE) {
   const group = new THREE.Group();
   group.userData.kind = "pit";
   const a = assets(THREE);
-  const { unit, mat } = a;
+  const { mat } = a;
 
-  box(group, unit, mat.pitVoid, 0.7, 0.7, 0.1, 0, -0.02, -0.31);
-  box(group, unit, mat.pitVoid, 0.88, 0.11, 0.56, 0, -0.445, -0.04);
+  box(group, a, mat.pitVoid, 0.7, 0.7, 0.1, 0, -0.02, -0.31);
+  box(group, a, mat.pitVoid, 0.88, 0.11, 0.56, 0, -0.445, -0.04);
 
-  box(group, unit, mat.grout, 0.1, 0.9, 0.52, -0.445, 0.02, -0.06);
-  box(group, unit, mat.grout, 0.1, 0.9, 0.52, 0.445, 0.02, -0.06);
-  box(group, unit, mat.grout, 0.7, 0.1, 0.52, 0, 0.445, -0.06);
+  box(group, a, mat.grout, 0.1, 0.9, 0.52, -0.445, 0.02, -0.06);
+  box(group, a, mat.grout, 0.1, 0.9, 0.52, 0.445, 0.02, -0.06);
+  box(group, a, mat.grout, 0.7, 0.1, 0.52, 0, 0.445, -0.06);
 
   const lips = [
     [-0.3, 0.43, 0.24, 0.28, 0.1, 0.18, 0.06, 0, -0.08, 0],
@@ -172,7 +173,7 @@ export function makePit(THREE) {
   for (const [x, y, z, w, h, d, rx, ry, rz, shade] of lips) {
     const chip = box(
       group,
-      unit,
+      a,
       shade ? mat.pitLipShade : mat.pitLip,
       w,
       h,
