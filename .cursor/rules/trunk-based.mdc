@@ -14,7 +14,8 @@ An iteration is one completed agent turn that produced a code change.
 1. Commit and push on the short-lived `cursor/*` branch.
 2. Open or update a pull request targeting `main`. Mark it ready for review (`draft: false`).
 3. GitHub Actions squash-merges `cursor/*` PRs into `main` automatically. Do not wait for a human merge.
-4. Before more work, `git fetch origin main` and continue from `origin/main`. Never keep committing to a branch that has already been merged.
+4. Tell the user how to open the updated app. Link `https://yamper.anatoly-yevtushenko.workers.dev/<project-slug>/` (and the hub at `https://yamper.anatoly-yevtushenko.workers.dev/` when the catalog changed).
+5. Before more work, `git fetch origin main` and continue from `origin/main`. Never keep committing to a branch that has already been merged.
 
 ## Do
 

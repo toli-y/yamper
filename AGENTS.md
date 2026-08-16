@@ -15,7 +15,8 @@ After each iteration (each turn that changed code):
 3. Commit and push.
 4. Create or update the PR against `main`, and mark it ready (`draft: false`).
 5. `.github/workflows/merge-to-trunk.yml` squash-merges `cursor/*` PRs into `main` and deletes the branch.
-6. Fetch `origin/main` before the next iteration. Do not keep committing on a merged branch.
+6. In the reply to the user, include a markdown link they can open to view the updated app: `https://yamper.anatoly-yevtushenko.workers.dev/<project-slug>/`. If the hub list changed, also link `https://yamper.anatoly-yevtushenko.workers.dev/`.
+7. Fetch `origin/main` before the next iteration. Do not keep committing on a merged branch.
 
 To hold a PR open, add the `do-not-merge` label. Only do that when the user asks.
 
