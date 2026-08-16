@@ -1,0 +1,30 @@
+---
+description: Trunk-based workflow — short-lived agent branches merge into main after every iteration
+alwaysApply: true
+---
+
+# Trunk-based development
+
+`main` is the only long-lived branch. Cloudflare Pages deploys production from `main` on every push.
+
+## After every iteration
+
+An iteration is one completed agent turn that produced a code change.
+
+1. Commit and push on the short-lived `cursor/*` branch.
+2. Open or update a pull request targeting `main`. Mark it ready for review (`draft: false`).
+3. GitHub Actions squash-merges `cursor/*` PRs into `main` automatically. Do not wait for a human merge.
+4. Before more work, `git fetch origin main` and continue from `origin/main`. Never keep committing to a branch that has already been merged.
+
+## Do
+
+- Keep each iteration small enough to land on `main` immediately.
+- Target PRs at `main` only.
+- Treat a follow-up as a new short-lived branch from the latest `main` if the previous PR already merged.
+
+## Do not
+
+- Do not open long-lived feature branches.
+- Do not stack unmerged PRs.
+- Do not add the `do-not-merge` label unless the user explicitly asked to keep the PR open.
+- Do not push directly to `main`; the auto-merge workflow is the path onto trunk.
