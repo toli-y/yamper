@@ -1,0 +1,45 @@
+name: Merge agent work to trunk
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: trunk-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  merge-to-trunk:
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'cursor/') &&
+      !github.event.pull_request.merged &&
+      !contains(join(github.event.pull_request.labels.*.name, ','), 'do-not-merge')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark ready and squash-merge into main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event.pull_request.draft }}" = "true" ]; then
+            gh pr ready "$PR" --repo "$REPO"
+          fi
+
+          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
+
+          gh pr comment "$PR" --repo "$REPO" --body "$(cat <<'EOF'
+          Squash-merged into `main` (trunk-based workflow).
+
+          Cloudflare Pages will pick up this revision from `main` and publish it automatically.
+          Continue the next iteration from the latest `origin/main`, not from this merged branch.
+          EOF
+          )"
