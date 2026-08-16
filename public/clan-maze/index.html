@@ -400,7 +400,7 @@
         <li><b>ShadowClan</b> — at night, 50% chance to deal 3 damage instead of 1.</li>
         <li><b>WindClan</b> — 1.5× faster than the other clans.</li>
         <li><b>RiverClan</b> — 20% chance to take no damage from an enemy warrior.</li>
-        <li><b>Dogs</b> — a 20 HP stray appears at the maze center every minute and hunts every clan. At night they go back to the middle and sleep.</li>
+        <li><b>Dogs</b> — 20 HP strays appear at the maze center every minute, and several can hunt at once. At night they go back to the middle and sleep.</li>
       </ul>
       <div class="mode-row">
         <button id="mode-watch" class="active" type="button">Watch</button>
@@ -876,6 +876,60 @@
 
       function mazeCenter() {
         return { r: Math.floor(ROWS / 2), c: Math.floor(COLS / 2) };
+      }
+
+      function centerBeds() {
+        const mid = mazeCenter();
+        const cells = [];
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            const r = mid.r + dr;
+            const c = mid.c + dc;
+            if (walkable(r, c)) cells.push({ r, c });
+          }
+        }
+        return cells.length ? cells : [mid];
+      }
+
+      function dogOnCell(r, c, except = null) {
+        return liveDogs().some((dog) => dog !== except && !dog.dead && dog.r === r && dog.c === c);
+      }
+
+      function pickOpenNear(cells, except = null) {
+        const free = cells.filter((cell) => !dogOnCell(cell.r, cell.c, except));
+        if (free.length) return free[Math.floor(Math.random() * free.length)];
+        return cells[0] || mazeCenter();
+      }
+
+      function pickDogSpawnCell() {
+        const beds = centerBeds();
+        const openBed = beds.find((cell) => !dogOnCell(cell.r, cell.c));
+        if (openBed) return openBed;
+        const mid = mazeCenter();
+        for (let rad = 2; rad <= 6; rad++) {
+          const ring = [];
+          for (let dr = -rad; dr <= rad; dr++) {
+            for (let dc = -rad; dc <= rad; dc++) {
+              if (Math.max(Math.abs(dr), Math.abs(dc)) !== rad) continue;
+              const r = mid.r + dr;
+              const c = mid.c + dc;
+              if (walkable(r, c) && !dogOnCell(r, c)) ring.push({ r, c });
+            }
+          }
+          if (ring.length) return ring[Math.floor(Math.random() * ring.length)];
+        }
+        return mazeCenter();
+      }
+
+      function pickDogSleepCell(dog) {
+        return pickOpenNear(centerBeds(), dog);
+      }
+
+      function dogJitter(dog) {
+        const n = Number(String(dog.id).replace(/\D/g, "")) || 1;
+        const ang = n * 2.399963;
+        const rad = 0.32;
+        return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
       }
 
       function neighbors(r, c) {
@@ -1687,8 +1741,7 @@
 
       function spawnDog() {
         if (liveDogs().length >= MAX_DOGS) return;
-        let cell = mazeCenter();
-        if (!walkable(cell.r, cell.c)) cell = randomWalkable();
+        const cell = pickDogSpawnCell();
         const pos = cellCenter(cell.r, cell.c);
         const mesh = makeDogMesh();
         mesh.position.set(pos.x, 0, pos.z);
@@ -1719,8 +1772,9 @@
           path: [],
           pathI: 0,
           rethink: 0.2,
-          facing: 0,
-          dogName: n === 1 ? "Dog" : `Dog ${n}`,
+          facing: n * 0.9,
+          bed: isNight() ? { r: cell.r, c: cell.c } : null,
+          dogName: `Dog ${n}`,
           mesh,
           label,
           labelEl,
@@ -1746,11 +1800,20 @@
       }
 
       function pickDogGoal(dog) {
-        if (isNight()) return mazeCenter();
+        if (isNight()) {
+          if (!dog.bed || dogOnCell(dog.bed.r, dog.bed.c, dog)) {
+            dog.bed = pickDogSleepCell(dog);
+          }
+          return dog.bed;
+        }
+        dog.bed = null;
         const cats = liveCats();
         if (!cats.length) return mazeCenter();
         cats.sort((a, b) => dist2(dog, a) - dist2(dog, b));
-        return { r: cats[0].r, c: cats[0].c };
+        const target = cats[0];
+        if (!dogOnCell(target.r, target.c, dog)) return { r: target.r, c: target.c };
+        const near = neighbors(target.r, target.c);
+        return pickOpenNear(near.length ? near : [{ r: target.r, c: target.c }], dog);
       }
 
       function retargetDog(dog) {
@@ -1763,11 +1826,12 @@
       }
 
       function syncDogVisual(dog) {
+        const j = dogJitter(dog);
         const bob = dog.sleeping || dog.dead ? 0 : Math.sin(state.t * 9 + dog.x) * 0.02;
-        dog.mesh.position.set(dog.x, dog.sleeping ? 0.18 : bob, dog.z);
+        dog.mesh.position.set(dog.x + j.x, dog.sleeping ? 0.18 : bob, dog.z + j.z);
         dog.mesh.rotation.y = dog.facing;
         dog.mesh.rotation.z = dog.sleeping ? Math.PI / 2.35 : 0;
-        dog.label.position.set(dog.x, 0.02, dog.z);
+        dog.label.position.set(dog.x + j.x, 0.02, dog.z + j.z);
         if (dog.mesh.userData.tail) {
           dog.mesh.userData.tail.rotation.y = dog.sleeping
             ? 0.15
@@ -1776,19 +1840,20 @@
       }
 
       function moveDog(dog, dt) {
-        const mid = mazeCenter();
+        if (isNight() && !dog.bed) dog.bed = pickDogSleepCell(dog);
+        const bed = dog.bed || mazeCenter();
         const here = cellCenter(dog.r, dog.c);
-        const atMid =
-          dog.r === mid.r &&
-          dog.c === mid.c &&
+        const atBed =
+          dog.r === bed.r &&
+          dog.c === bed.c &&
           Math.hypot(dog.x - here.x, dog.z - here.z) < 0.12;
-        if (isNight() && atMid) {
+        if (isNight() && atBed) {
           if (!dog.sleeping) {
             dog.sleeping = true;
+            dog.facing = (Number(String(dog.id).replace(/\D/g, "")) || 1) * 0.85;
             setDogLabel(dog);
           }
           dog.path = [];
-          dog.facing = 0;
           syncDogVisual(dog);
           return;
         }
