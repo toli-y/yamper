@@ -1966,13 +1966,16 @@
 
       const clock = new THREE.Clock();
       const follow = new THREE.Vector3();
+      const pan = new THREE.Vector3();
       syncPlayUi();
       reset();
       renderer.setAnimationLoop(() => {
         tick(clock.getDelta());
         if (state.playMode && state.player && !state.player.dead && !state.player.respawning) {
           follow.set(state.player.x, 0.45, state.player.z);
-          controls.target.lerp(follow, 0.08);
+          pan.copy(follow).sub(controls.target).multiplyScalar(0.12);
+          controls.target.add(pan);
+          camera.position.add(pan);
         }
         controls.update();
         renderer.render(scene, camera);
