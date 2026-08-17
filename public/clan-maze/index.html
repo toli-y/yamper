@@ -750,7 +750,6 @@
         bodyHex: "",
         live: [],
         liveDogList: [],
-        labelIn: 0,
         lastDayAmt: -1,
         frameT0: 0,
       };
@@ -2782,7 +2781,6 @@
         spawnPrey();
         refreshLive();
         updateStatus();
-        state.labelIn = 0.1;
       }
 
       function tick(dt) {
@@ -3067,11 +3065,7 @@
         applyLookPan(dt);
         controls.update();
         renderer.render(scene, camera);
-        state.labelIn += dt;
-        if (state.labelIn >= 0.1) {
-          state.labelIn = 0;
-          labelRenderer.render(scene, camera);
-        }
+        labelRenderer.render(scene, camera);
       });
     </script>
   </body>
