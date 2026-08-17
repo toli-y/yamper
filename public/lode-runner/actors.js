@@ -1,3 +1,5 @@
+import { THINK_INTERVAL } from "./constants.js";
+
 export function createRunner(THREE, makePlayer) {
   const laser = new THREE.Mesh(
     new THREE.BoxGeometry(0.95, 0.07, 0.07),
@@ -35,7 +37,8 @@ export function createGuard(THREE, makeGuard, x, y) {
     dropIn: 0,
     alive: true,
     isGuard: true,
-    thinkT: 0,
+    thinkT: THINK_INTERVAL * (0.5 + Math.random()),
+    decidedAt: "",
     wish: { x: 0, y: 0 },
     mesh: makeGuard(THREE),
   };

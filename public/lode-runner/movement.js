@@ -24,6 +24,10 @@ export function snapUndrivenAxes(actor, wish) {
   if (!wish.y && aligned(actor.y)) actor.y = roundish(actor.y);
 }
 
+export function atTileCenter(actor) {
+  return aligned(actor.x) && aligned(actor.y);
+}
+
 function easeToward(current, target, dt, rate) {
   return current + (target - current) * Math.min(1, rate * dt);
 }
