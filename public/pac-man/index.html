@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <title>Pac-Man</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        --ink: #f8fafc;
+        --muted: #94a3b8;
+        --line: #243044;
+        --panel: rgba(8, 12, 20, 0.86);
+        --you: #ffcc00;
+        --blinky: #ff3b30;
+        --pinky: #ff9ee8;
+        --inky: #22d3ee;
+        --clyde: #ffb347;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #02040a;
+        color: var(--ink);
+        -webkit-user-select: none;
+        user-select: none;
+        touch-action: none;
+      }
+      canvas {
+        display: block;
+      }
+      .hud {
+        position: fixed;
+        inset: 1rem 1rem auto auto;
+        z-index: 3;
+        width: min(20rem, calc(100vw - 2rem));
+        padding: 0.85rem 1rem 0.95rem;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(10px);
+      }
+      h1 {
+        margin: 0 0 0.1rem;
+        font-size: 1.15rem;
+        letter-spacing: 0.08em;
+      }
+      .lede {
+        margin: 0 0 0.7rem;
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.4;
+      }
+      .board {
+        display: grid;
+        gap: 0.32rem;
+        margin: 0 0 0.7rem;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 0.7rem 1fr auto auto;
+        gap: 0.45rem;
+        align-items: center;
+        font-size: 0.78rem;
+      }
+      .swatch {
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 50%;
+        box-shadow: 0 0 8px currentColor;
+      }
+      .score {
+        font-variant-numeric: tabular-nums;
+        color: #e2e8f0;
+      }
+      .lives {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .ghosts {
+        display: flex;
+        gap: 0.35rem;
+        margin: 0 0 0.75rem;
+      }
+      .ghost {
+        flex: 1;
+        padding: 0.28rem 0.2rem;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 0.62rem;
+        letter-spacing: 0.04em;
+        background: #0b1220;
+        border: 1px solid #1e293b;
+        color: var(--muted);
+      }
+      .ghost b {
+        display: block;
+        font-size: 0.72rem;
+        font-weight: 700;
+      }
+      .ghost.out {
+        color: #e2e8f0;
+        border-color: color-mix(in srgb, currentColor 50%, #1e293b);
+      }
+      button {
+        appearance: none;
+        width: 100%;
+        border: 1px solid #334155;
+        background: #111827;
+        color: var(--ink);
+        border-radius: 8px;
+        padding: 0.42rem 0.65rem;
+        font: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: #7dd3fc;
+      }
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+        display: grid;
+        place-items: center;
+        background: rgba(2, 4, 10, 0.55);
+        pointer-events: none;
+      }
+      .overlay.interactive {
+        pointer-events: auto;
+        background: rgba(2, 4, 10, 0.72);
+      }
+      .banner {
+        text-align: center;
+        padding: 1.2rem 1.4rem;
+        border-radius: 16px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        min-width: min(22rem, calc(100vw - 2rem));
+      }
+      .banner h2 {
+        margin: 0 0 0.35rem;
+        letter-spacing: 0.14em;
+        color: var(--you);
+      }
+      .banner p {
+        margin: 0 0 0.85rem;
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1.45;
+      }
+      .hidden {
+        display: none;
+      }
+      .pad {
+        position: fixed;
+        left: 1rem;
+        bottom: 1rem;
+        z-index: 3;
+        display: grid;
+        grid-template-columns: 3.1rem 3.1rem 3.1rem;
+        grid-template-rows: 3.1rem 3.1rem 3.1rem;
+        gap: 0.28rem;
+      }
+      .pad button {
+        width: 3.1rem;
+        height: 3.1rem;
+        padding: 0;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        background: rgba(15, 23, 42, 0.78);
+      }
+      .pad .up { grid-column: 2; grid-row: 1; }
+      .pad .left { grid-column: 1; grid-row: 2; }
+      .pad .right { grid-column: 3; grid-row: 2; }
+      .pad .down { grid-column: 2; grid-row: 3; }
+      @media (min-width: 900px) {
+        .pad { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <aside class="hud">
+      <h1>PAC-MAN</h1>
+      <p class="lede">One maze, five Pac-Men. You steer yellow. Four AI rivals eat the same dots. Ghosts leave the house one at a time.</p>
+      <div class="board" id="scores"></div>
+      <div class="ghosts" id="ghosts"></div>
+      <button type="button" id="restart">New game</button>
+    </aside>
+    <div class="overlay interactive" id="overlay">
+      <div class="banner">
+        <h2 id="banner-title">READY!</h2>
+        <p id="banner-body">Arrows or WASD to move. Eat 244 pellets before the ghosts or the other Pac-Men do.</p>
+        <button type="button" id="start">Start</button>
+      </div>
+    </div>
+    <div class="pad" aria-hidden="true">
+      <button type="button" class="up" data-dir="0,-1">▲</button>
+      <button type="button" class="left" data-dir="-1,0">◀</button>
+      <button type="button" class="right" data-dir="1,0">▶</button>
+      <button type="button" class="down" data-dir="0,1">▼</button>
+    </div>
+    <script type="module">
+      import * as THREE from "three";
+
+      const MAZE = [
+        "||||||||||||||||||||||||||||",
+        "|............||............|",
+        "|.||||.|||||.||.|||||.||||.|",
+        "|o||||.|||||.||.|||||.||||o|",
+        "|.||||.|||||.||.|||||.||||.|",
+        "|..........................|",
+        "|.||||.||.||||||||.||.||||.|",
+        "|.||||.||.||||||||.||.||||.|",
+        "|......||....||....||......|",
+        "||||||.||||| || |||||.||||||",
+        "_____|.||||| || |||||.|_____",
+        "_____|.||          ||.|_____",
+        "_____|.|| |||--||| ||.|_____",
+        "||||||.|| |______| ||.||||||",
+        "      .   |______|   .      ",
+        "||||||.|| |______| ||.||||||",
+        "_____|.|| |||||||| ||.|_____",
+        "_____|.||          ||.|_____",
+        "_____|.|| |||||||| ||.|_____",
+        "||||||.|| |||||||| ||.||||||",
+        "|............||............|",
+        "|.||||.|||||.||.|||||.||||.|",
+        "|.||||.|||||.||.|||||.||||.|",
+        "|o..||.......  .......||..o|",
+        "|||.||.||.||||||||.||.||.|||",
+        "|||.||.||.||||||||.||.||.|||",
+        "|......||....||....||......|",
+        "|.||||||||||.||.||||||||||.|",
+        "|.||||||||||.||.||||||||||.|",
+        "|..........................|",
+        "||||||||||||||||||||||||||||",
+      ];
+
+      const ROWS = MAZE.length;
+      const COLS = MAZE[0].length;
+      const DIRS = [
+        { x: 1, y: 0 },
+        { x: 0, y: 1 },
+        { x: -1, y: 0 },
+        { x: 0, y: -1 },
+      ];
+      const DIR_RIGHT = 0;
+      const DIR_DOWN = 1;
+      const DIR_LEFT = 2;
+      const DIR_UP = 3;
+      const OPPOSITE = [DIR_LEFT, DIR_UP, DIR_RIGHT, DIR_DOWN];
+      const TUNNEL_ROW = 14;
+      const DOOR = { x: 14, y: 12 };
+      const HOUSE = { x: 14, y: 14 };
+      const OUTSIDE = { x: 14, y: 11 };
+      const FORBIDDEN_UP = new Set(["12,11", "15,11", "12,23", "15,23"]);
+
+      const PAC_DEFS = [
+        { id: "you", name: "You", color: 0xffcc00, ai: false, start: { x: 14, y: 23 }, fear: 6, bias: 0 },
+        { id: "amber", name: "Amber", color: 0xff9f1c, ai: true, start: { x: 1, y: 1 }, fear: 5, bias: 0 },
+        { id: "honey", name: "Honey", color: 0xf5e6a3, ai: true, start: { x: 26, y: 1 }, fear: 8, bias: 1 },
+        { id: "mint", name: "Mint", color: 0x9dffb0, ai: true, start: { x: 1, y: 29 }, fear: 4, bias: 2 },
+        { id: "peach", name: "Peach", color: 0xffb07c, ai: true, start: { x: 26, y: 29 }, fear: 7, bias: 3 },
+      ];
+
+      const GHOST_DEFS = [
+        { id: "blinky", name: "Blinky", color: 0xff3b30, start: { x: 14, y: 11 }, house: { x: 14, y: 14 }, dir: DIR_LEFT, scatter: { x: 25, y: 0 } },
+        { id: "pinky", name: "Pinky", color: 0xff9ee8, start: { x: 14, y: 14 }, house: { x: 14, y: 14 }, dir: DIR_DOWN, scatter: { x: 2, y: 0 } },
+        { id: "inky", name: "Inky", color: 0x22d3ee, start: { x: 12, y: 14 }, house: { x: 12, y: 14 }, dir: DIR_UP, scatter: { x: 27, y: 30 } },
+        { id: "clyde", name: "Clyde", color: 0xffb347, start: { x: 16, y: 14 }, house: { x: 16, y: 14 }, dir: DIR_UP, scatter: { x: 0, y: 30 } },
+      ];
+
+      const tile = (x, y) => {
+        if (y === TUNNEL_ROW && (x < 0 || x >= COLS)) return " ";
+        if (y < 0 || y >= ROWS || x < 0 || x >= COLS) return "|";
+        return maze[y][x];
+      };
+
+      const isHouse = (x, y) => x >= 10 && x <= 17 && y >= 12 && y <= 15;
+
+      const walkable = (x, y, mode = "pac") => {
+        const c = tile(x, y);
+        if (c === "." || c === "o" || c === " ") return true;
+        if (mode === "pac") return false;
+        if (c === "_" && isHouse(x, y)) return true;
+        if (c === "-" && mode !== "house") return true;
+        return false;
+      };
+
+      const ghostMode = (ghost) => {
+        if (!ghost) return "pac";
+        if (ghost.state === "house") return "house";
+        return "ghost";
+      };
+
+      const wrapX = (x) => {
+        if (x < -0.5) return COLS - 0.5;
+        if (x > COLS - 0.5) return -0.5;
+        return x;
+      };
+
+      const atCenter = (actor) =>
+        Math.abs(actor.x - Math.round(actor.x)) < 0.08 && Math.abs(actor.y - Math.round(actor.y)) < 0.08;
+
+      const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+      const worldPos = (x, y) => new THREE.Vector3(x - (COLS - 1) / 2, 0, y - (ROWS - 1) / 2);
+
+      let maze = MAZE.map((row) => row.split(""));
+      let pelletsLeft = 0;
+      let dotsEaten = 0;
+      let globalDots = 0;
+      let useGlobalCounter = false;
+      let frightened = 0;
+      let ghostCombo = 0;
+      let modeTime = 0;
+      let modeIndex = 0;
+      let sinceDot = 0;
+      let level = 1;
+      let phase = "start";
+      let phaseTime = 0;
+      const extras = [];
+
+      const MODE_TIMES = [7, 20, 7, 20, 5, 20, 5, 1e9];
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.setClearColor(0x02040a, 1);
+      document.body.appendChild(renderer.domElement);
+
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x02040a, 36, 72);
+
+      const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
+      const fitCamera = () => {
+        const aspect = innerWidth / innerHeight;
+        const dist = aspect < 0.85 ? 48 : 38;
+        camera.aspect = aspect;
+        camera.position.set(0, dist, dist * 0.42);
+        camera.lookAt(0, 0, 1.6);
+        camera.updateProjectionMatrix();
+      };
+      fitCamera();
+
+      scene.add(new THREE.AmbientLight(0x6b7bb0, 0.85));
+      const key = new THREE.DirectionalLight(0xffffff, 1.05);
+      key.position.set(10, 28, 8);
+      scene.add(key);
+      const fill = new THREE.PointLight(0x3355ff, 18, 60);
+      fill.position.set(0, 8, 0);
+      scene.add(fill);
+
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(COLS + 6, ROWS + 6),
+        new THREE.MeshStandardMaterial({ color: 0x050814, roughness: 0.92, metalness: 0.05 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -0.22;
+      scene.add(floor);
+
+      const wallGeo = new THREE.BoxGeometry(0.92, 0.72, 0.92);
+      const wallMat = new THREE.MeshStandardMaterial({
+        color: 0x1d4ed8,
+        emissive: 0x1630a8,
+        emissiveIntensity: 0.55,
+        roughness: 0.35,
+        metalness: 0.15,
+      });
+      const doorGeo = new THREE.BoxGeometry(0.95, 0.12, 0.28);
+      const doorMat = new THREE.MeshStandardMaterial({
+        color: 0xff6ad5,
+        emissive: 0xff3db1,
+        emissiveIntensity: 0.8,
+      });
+      const pelletGeo = new THREE.SphereGeometry(0.09, 8, 8);
+      const pelletMat = new THREE.MeshStandardMaterial({
+        color: 0xffd7a8,
+        emissive: 0xffc078,
+        emissiveIntensity: 0.7,
+      });
+      const powerGeo = new THREE.SphereGeometry(0.22, 12, 12);
+      const powerMat = new THREE.MeshStandardMaterial({
+        color: 0xffe4b0,
+        emissive: 0xffcc66,
+        emissiveIntensity: 1,
+      });
+
+      const wallMesh = new THREE.InstancedMesh(wallGeo, wallMat, 700);
+      const pelletMesh = new THREE.InstancedMesh(pelletGeo, pelletMat, 260);
+      const dummy = new THREE.Object3D();
+      const pelletCells = [];
+      const powerMeshes = [];
+      let wallCount = 0;
+      let pelletCount = 0;
+
+      const buildMaze = () => {
+        wallCount = 0;
+        pelletCount = 0;
+        pelletCells.length = 0;
+        for (const mesh of powerMeshes) scene.remove(mesh);
+        powerMeshes.length = 0;
+        for (const mesh of extras) scene.remove(mesh);
+        extras.length = 0;
+        pelletsLeft = 0;
+        for (let y = 0; y < ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            const c = maze[y][x];
+            const p = worldPos(x, y);
+            if (c === "|") {
+              dummy.position.set(p.x, 0.36, p.z);
+              dummy.scale.set(1, 1, 1);
+              dummy.updateMatrix();
+              wallMesh.setMatrixAt(wallCount++, dummy.matrix);
+            } else if (c === "-") {
+              const door = new THREE.Mesh(doorGeo, doorMat);
+              door.position.set(p.x, 0.18, p.z);
+              scene.add(door);
+              extras.push(door);
+            } else if (c === ".") {
+              dummy.position.set(p.x, 0.16, p.z);
+              dummy.updateMatrix();
+              pelletMesh.setMatrixAt(pelletCount, dummy.matrix);
+              pelletCells.push({ x, y, index: pelletCount, eaten: false, power: false });
+              pelletCount++;
+              pelletsLeft++;
+            } else if (c === "o") {
+              const mesh = new THREE.Mesh(powerGeo, powerMat);
+              mesh.position.set(p.x, 0.22, p.z);
+              scene.add(mesh);
+              powerMeshes.push(mesh);
+              pelletCells.push({ x, y, index: powerMeshes.length - 1, eaten: false, power: true, mesh });
+              pelletsLeft++;
+            } else if (c === "_" && isHouse(x, y)) {
+              const pad = new THREE.Mesh(
+                new THREE.BoxGeometry(0.96, 0.08, 0.96),
+                new THREE.MeshStandardMaterial({ color: 0x140816, emissive: 0x220814, emissiveIntensity: 0.25 })
+              );
+              pad.position.set(p.x, -0.08, p.z);
+              scene.add(pad);
+              extras.push(pad);
+            }
+          }
+        }
+        wallMesh.count = wallCount;
+        wallMesh.instanceMatrix.needsUpdate = true;
+        pelletMesh.count = pelletCount;
+        pelletMesh.instanceMatrix.needsUpdate = true;
+      };
+
+      scene.add(wallMesh);
+      scene.add(pelletMesh);
+
+      const hidePellet = (cell) => {
+        if (cell.power) {
+          cell.mesh.visible = false;
+        } else {
+          dummy.position.set(0, -10, 0);
+          dummy.updateMatrix();
+          pelletMesh.setMatrixAt(cell.index, dummy.matrix);
+          pelletMesh.instanceMatrix.needsUpdate = true;
+        }
+      };
+
+      const makePacMesh = (color) => {
+        const group = new THREE.Group();
+        const geo = new THREE.SphereGeometry(0.42, 22, 16, 0.55, Math.PI * 2 - 1.1);
+        const mat = new THREE.MeshStandardMaterial({
+          color,
+          emissive: color,
+          emissiveIntensity: 0.28,
+          roughness: 0.35,
+        });
+        const body = new THREE.Mesh(geo, mat);
+        body.rotation.z = Math.PI / 2;
+        group.add(body);
+        const eye = new THREE.Mesh(
+          new THREE.SphereGeometry(0.07, 8, 8),
+          new THREE.MeshStandardMaterial({ color: 0x111111 })
+        );
+        eye.position.set(0.12, 0.18, -0.22);
+        group.add(eye);
+        group.userData.body = body;
+        return group;
+      };
+
+      const addPlayerRing = (group) => {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.55, 0.045, 8, 24),
+          new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.6 })
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = -0.28;
+        group.add(ring);
+      };
+
+      const makeGhostMesh = (color) => {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({
+          color,
+          emissive: color,
+          emissiveIntensity: 0.35,
+          roughness: 0.4,
+        });
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 18, 14, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+        head.position.y = 0.08;
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.4, 0.42, 18), mat);
+        body.position.y = -0.12;
+        group.add(head, body);
+        for (let i = 0; i < 4; i++) {
+          const flap = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), mat);
+          flap.position.set(-0.27 + i * 0.18, -0.34, 0);
+          group.add(flap);
+        }
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const pupilMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8 });
+        for (const side of [-1, 1]) {
+          const eye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), eyeMat);
+          eye.position.set(side * 0.14, 0.16, 0.22);
+          const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), pupilMat);
+          pupil.position.set(side * 0.14, 0.16, 0.3);
+          group.add(eye, pupil);
+        }
+        group.userData.baseColor = color;
+        group.userData.mat = mat;
+        return group;
+      };
+
+      const pacs = PAC_DEFS.map((def) => {
+        const mesh = makePacMesh(def.color);
+        if (!def.ai) addPlayerRing(mesh);
+        scene.add(mesh);
+        return {
+          ...def,
+          mesh,
+          x: def.start.x,
+          y: def.start.y,
+          dir: DIR_LEFT,
+          nextDir: DIR_LEFT,
+          alive: true,
+          lives: 3,
+          score: 0,
+          respawn: 0,
+          mouth: 0,
+        };
+      });
+
+      const ghosts = GHOST_DEFS.map((def) => {
+        const mesh = makeGhostMesh(def.color);
+        const light = new THREE.PointLight(def.color, 2.4, 6);
+        mesh.add(light);
+        scene.add(mesh);
+        return {
+          ...def,
+          mesh,
+          x: def.start.x,
+          y: def.start.y,
+          dir: def.dir,
+          state: def.id === "blinky" ? "out" : "house",
+          mode: "scatter",
+        };
+      });
+
+      const player = pacs[0];
+      const keys = new Set();
+      const wanted = { x: 0, y: 0 };
+
+      const setWanted = (x, y) => {
+        wanted.x = x;
+        wanted.y = y;
+        if (x === 1) player.nextDir = DIR_RIGHT;
+        if (x === -1) player.nextDir = DIR_LEFT;
+        if (y === 1) player.nextDir = DIR_DOWN;
+        if (y === -1) player.nextDir = DIR_UP;
+      };
+
+      addEventListener("keydown", (event) => {
+        keys.add(event.key);
+        if (event.key === "ArrowRight" || event.key === "d" || event.key === "D") setWanted(1, 0);
+        if (event.key === "ArrowLeft" || event.key === "a" || event.key === "A") setWanted(-1, 0);
+        if (event.key === "ArrowDown" || event.key === "s" || event.key === "S") setWanted(0, 1);
+        if (event.key === "ArrowUp" || event.key === "w" || event.key === "W") setWanted(0, -1);
+        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) event.preventDefault();
+      });
+      addEventListener("keyup", (event) => keys.delete(event.key));
+
+      for (const button of document.querySelectorAll(".pad button")) {
+        const hold = (event) => {
+          event.preventDefault();
+          const [x, y] = button.dataset.dir.split(",").map(Number);
+          setWanted(x, y);
+        };
+        button.addEventListener("pointerdown", hold);
+      }
+
+      const audio = {
+        ctx: null,
+        ensure() {
+          try {
+            if (!this.ctx) this.ctx = new AudioContext();
+            if (this.ctx.state === "suspended") this.ctx.resume();
+            return this.ctx;
+          } catch {
+            return null;
+          }
+        },
+        beep(freq, dur, type = "square", gain = 0.04) {
+          const ctx = this.ensure();
+          if (!ctx) return;
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.type = type;
+          osc.frequency.value = freq;
+          g.gain.value = gain;
+          g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+          osc.connect(g).connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + dur);
+        },
+      };
+
+      const snapActor = (actor) => {
+        actor.x = Math.round(actor.x * 1000) / 1000;
+        actor.y = Math.round(actor.y * 1000) / 1000;
+        if (atCenter(actor)) {
+          actor.x = Math.round(actor.x);
+          actor.y = Math.round(actor.y);
+        }
+      };
+
+      const openDirs = (x, y, mode = "pac", forbidUp = false) => {
+        const tx = Math.round(x);
+        const ty = Math.round(y);
+        const open = [];
+        for (let i = 0; i < 4; i++) {
+          if (forbidUp && i === DIR_UP && FORBIDDEN_UP.has(`${tx},${ty}`)) continue;
+          const nx = tx + DIRS[i].x;
+          const ny = ty + DIRS[i].y;
+          if (walkable(nx, ny, mode)) open.push(i);
+        }
+        return open;
+      };
+
+      const pickToward = (from, target, dirs, noReverse) => {
+        let best = dirs[0];
+        let bestD = Infinity;
+        for (const dir of dirs) {
+          if (noReverse != null && dir === noReverse && dirs.length > 1) continue;
+          const nx = from.x + DIRS[dir].x;
+          const ny = from.y + DIRS[dir].y;
+          const d = Math.abs(nx - target.x) + Math.abs(ny - target.y);
+          if (d < bestD || (d === bestD && dir < best)) {
+            bestD = d;
+            best = dir;
+          }
+        }
+        return best;
+      };
+
+      const pickAway = (from, target, dirs, noReverse) => {
+        let best = dirs[0];
+        let bestD = -1;
+        for (const dir of dirs) {
+          if (noReverse != null && dir === noReverse && dirs.length > 1) continue;
+          const nx = from.x + DIRS[dir].x;
+          const ny = from.y + DIRS[dir].y;
+          const d = Math.abs(nx - target.x) + Math.abs(ny - target.y);
+          if (d > bestD) {
+            bestD = d;
+            best = dir;
+          }
+        }
+        return best;
+      };
+
+      const livingPacs = () => pacs.filter((p) => p.alive);
+
+      const nearestPac = (ghost) => {
+        let best = player.alive ? player : livingPacs()[0];
+        let bestD = Infinity;
+        for (const pac of livingPacs()) {
+          const d = manhattan(ghost, pac);
+          if (d < bestD) {
+            bestD = d;
+            best = pac;
+          }
+        }
+        return best;
+      };
+
+      const ghostTarget = (ghost) => {
+        if (ghost.state === "eyes") return HOUSE;
+        if (ghost.state === "leaving") return ghost.y > 11.2 ? OUTSIDE : { x: 13, y: 11 };
+        if (ghost.state === "house") return { x: ghost.x, y: ghost.y + (ghost.dir === DIR_UP ? -1 : 1) };
+        if (frightened > 0 && ghost.state === "out") return null;
+        if (ghost.mode === "scatter") return ghost.scatter;
+        const prey = ghost.id === "blinky" || ghost.id === "clyde" ? nearestPac(ghost) : player.alive ? player : nearestPac(ghost);
+        if (!prey) return ghost.scatter;
+        if (ghost.id === "blinky") return { x: prey.x, y: prey.y };
+        if (ghost.id === "pinky") {
+          return { x: prey.x + DIRS[prey.dir].x * 4, y: prey.y + DIRS[prey.dir].y * 4 };
+        }
+        if (ghost.id === "inky") {
+          const blinky = ghosts[0];
+          const ax = prey.x + DIRS[prey.dir].x * 2;
+          const ay = prey.y + DIRS[prey.dir].y * 2;
+          return { x: ax + (ax - blinky.x), y: ay + (ay - blinky.y) };
+        }
+        if (manhattan(ghost, prey) > 8) return { x: prey.x, y: prey.y };
+        return ghost.scatter;
+      };
+
+      const nearestPellet = (pac) => {
+        let best = null;
+        let bestD = Infinity;
+        for (const cell of pelletCells) {
+          if (cell.eaten) continue;
+          let d = Math.abs(cell.x - pac.x) + Math.abs(cell.y - pac.y);
+          if (pac.bias === 1 && cell.x < 14) d += 4;
+          if (pac.bias === 2 && cell.y < 16) d += 3;
+          if (pac.bias === 3 && cell.x > 13) d += 4;
+          if (pac.bias === 2 && cell.power) d -= 8;
+          if (d < bestD) {
+            bestD = d;
+            best = cell;
+          }
+        }
+        return best;
+      };
+
+      const nearestGhost = (pac, frightenedOnly) => {
+        let best = null;
+        let bestD = Infinity;
+        for (const ghost of ghosts) {
+          if (ghost.state !== "out") continue;
+          const isFright = frightened > 0;
+          if (frightenedOnly && !isFright) continue;
+          if (!frightenedOnly && isFright) continue;
+          const d = manhattan(ghost, pac);
+          if (d < bestD) {
+            bestD = d;
+            best = ghost;
+          }
+        }
+        return best;
+      };
+
+      const chooseAiDir = (pac) => {
+        const dirs = openDirs(pac.x, pac.y, "pac");
+        if (!dirs.length) return pac.dir;
+        const fright = nearestGhost(pac, true);
+        if (fright && manhattan(fright, pac) < 10) return pickToward(pac, fright, dirs, OPPOSITE[pac.dir]);
+        const hunter = nearestGhost(pac, false);
+        if (hunter && manhattan(hunter, pac) < pac.fear) return pickAway(pac, hunter, dirs, OPPOSITE[pac.dir]);
+        const pellet = nearestPellet(pac);
+        if (pellet) return pickToward(pac, pellet, dirs, OPPOSITE[pac.dir]);
+        return dirs.includes(pac.dir) ? pac.dir : dirs[0];
+      };
+
+      const chooseGhostDir = (ghost) => {
+        const mode = ghostMode(ghost);
+        const inHouse = ghost.state === "house" || ghost.state === "leaving" || ghost.state === "eyes";
+        const dirs = openDirs(ghost.x, ghost.y, mode, ghost.state === "out");
+        if (!dirs.length) return ghost.dir;
+        if (ghost.state === "house") {
+          const up = walkable(Math.round(ghost.x), Math.round(ghost.y) - 1, "house");
+          const down = walkable(Math.round(ghost.x), Math.round(ghost.y) + 1, "house");
+          if (ghost.dir === DIR_UP && !up) return DIR_DOWN;
+          if (ghost.dir === DIR_DOWN && !down) return DIR_UP;
+          return ghost.dir === DIR_UP || ghost.dir === DIR_DOWN ? ghost.dir : DIR_UP;
+        }
+        if (frightened > 0 && ghost.state === "out") {
+          const options = dirs.filter((d) => d !== OPPOSITE[ghost.dir]);
+          return options[Math.floor(Math.random() * options.length)] ?? ghost.dir;
+        }
+        const target = ghostTarget(ghost);
+        if (!target) {
+          const options = dirs.filter((d) => d !== OPPOSITE[ghost.dir]);
+          return options[Math.floor(Math.random() * options.length)] ?? ghost.dir;
+        }
+        return pickToward(ghost, target, dirs, inHouse ? null : OPPOSITE[ghost.dir]);
+      };
+
+      const distToCenter = (actor) => {
+        const dir = DIRS[actor.dir];
+        if (dir.x > 0) return Math.ceil(actor.x + 1e-6) - actor.x;
+        if (dir.x < 0) return actor.x - Math.floor(actor.x - 1e-6);
+        if (dir.y > 0) return Math.ceil(actor.y + 1e-6) - actor.y;
+        if (dir.y < 0) return actor.y - Math.floor(actor.y - 1e-6);
+        return 0;
+      };
+
+      const decideDir = (actor, ghost) => {
+        const mode = ghost ? ghostMode(actor) : "pac";
+        const tryDir = ghost ? chooseGhostDir(actor) : actor.ai ? chooseAiDir(actor) : actor.nextDir;
+        const nx = actor.x + DIRS[tryDir].x;
+        const ny = actor.y + DIRS[tryDir].y;
+        if (walkable(nx, ny, mode)) actor.dir = tryDir;
+      };
+
+      const moveActor = (actor, speed, dt, ghost = false) => {
+        const mode = ghost ? ghostMode(actor) : "pac";
+        let remaining = speed * dt;
+        while (remaining > 0) {
+          const centered =
+            Math.abs(actor.x - Math.round(actor.x)) < 1e-4 && Math.abs(actor.y - Math.round(actor.y)) < 1e-4;
+          if (centered) {
+            actor.x = Math.round(actor.x);
+            actor.y = Math.round(actor.y);
+            decideDir(actor, ghost);
+            if (!walkable(actor.x + DIRS[actor.dir].x, actor.y + DIRS[actor.dir].y, mode)) break;
+          }
+          const step = Math.min(remaining, centered ? 1 : distToCenter(actor));
+          if (step <= 1e-6) break;
+          actor.x = wrapX(actor.x + DIRS[actor.dir].x * step);
+          actor.y += DIRS[actor.dir].y * step;
+          remaining -= step;
+        }
+        if (actor.y < 0) actor.y = 0;
+        if (actor.y > ROWS - 1) actor.y = ROWS - 1;
+        snapActor(actor);
+      };
+
+      const eatAt = (pac) => {
+        const x = Math.round(pac.x);
+        const y = Math.round(pac.y);
+        const cell = pelletCells.find((p) => !p.eaten && p.x === x && p.y === y);
+        if (!cell) return;
+        cell.eaten = true;
+        hidePellet(cell);
+        maze[y][x] = " ";
+        pelletsLeft--;
+        dotsEaten++;
+        globalDots++;
+        sinceDot = 0;
+        if (cell.power) {
+          pac.score += 50;
+          frightened = Math.max(4.5, 7 - level * 0.6);
+          ghostCombo = 0;
+          for (const ghost of ghosts) {
+            if (ghost.state === "out") ghost.dir = OPPOSITE[ghost.dir];
+          }
+          audio.beep(180, 0.18, "sawtooth", 0.05);
+        } else {
+          pac.score += 10;
+          audio.beep(420 + (dotsEaten % 2) * 80, 0.05, "square", 0.025);
+        }
+      };
+
+      const placeMesh = (actor, isGhost) => {
+        const p = worldPos(actor.x, actor.y);
+        actor.mesh.position.set(p.x, isGhost ? 0.28 : 0.32, p.z);
+        const angle = -actor.dir * (Math.PI / 2);
+        actor.mesh.rotation.y = angle;
+        if (!isGhost) {
+          actor.mouth += 0.18;
+          actor.mesh.scale.set(1, 1, 1);
+          actor.mesh.userData.body.rotation.x = Math.sin(actor.mouth) * 0.08;
+          actor.mesh.visible = actor.alive;
+        }
+      };
+
+      const colorGhost = (ghost) => {
+        const mat = ghost.mesh.userData.mat;
+        if (ghost.state === "eyes") {
+          mat.color.setHex(0x99aacc);
+          mat.emissive.setHex(0x223355);
+          mat.opacity = 0.35;
+          mat.transparent = true;
+        } else if (frightened > 0 && ghost.state === "out") {
+          const flash = frightened < 2 && Math.floor(frightened * 6) % 2 === 0;
+          mat.color.setHex(flash ? 0xffffff : 0x1d4ed8);
+          mat.emissive.setHex(flash ? 0x99aaff : 0x1538a8);
+          mat.transparent = false;
+          mat.opacity = 1;
+        } else {
+          mat.color.setHex(ghost.color);
+          mat.emissive.setHex(ghost.color);
+          mat.transparent = false;
+          mat.opacity = 1;
+        }
+      };
+
+      const releaseNext = () => {
+        const order = ["pinky", "inky", "clyde"];
+        for (const id of order) {
+          const ghost = ghosts.find((g) => g.id === id);
+          if (ghost.state === "house") {
+            ghost.state = "leaving";
+            return;
+          }
+        }
+      };
+
+      const updateRelease = (dt) => {
+        sinceDot += dt;
+        const house = ghosts.filter((g) => g.state === "house");
+        if (!house.length) return;
+        if (sinceDot > 4) {
+          releaseNext();
+          sinceDot = 0;
+          return;
+        }
+        if (!useGlobalCounter) {
+          if (ghosts[1].state === "house") {
+            ghosts[1].state = "leaving";
+            return;
+          }
+          if (ghosts[2].state === "house" && dotsEaten >= 30) ghosts[2].state = "leaving";
+          else if (ghosts[3].state === "house" && dotsEaten >= 60) ghosts[3].state = "leaving";
+        } else {
+          if (ghosts[1].state === "house" && globalDots >= 7) ghosts[1].state = "leaving";
+          else if (ghosts[2].state === "house" && globalDots >= 17) ghosts[2].state = "leaving";
+          else if (ghosts[3].state === "house" && globalDots >= 32) ghosts[3].state = "leaving";
+        }
+      };
+
+      const finishLeaving = (ghost) => {
+        if (ghost.state === "leaving" && ghost.y <= 11.05 && Math.abs(ghost.x - 14) < 0.4) {
+          ghost.x = 14;
+          ghost.y = 11;
+          ghost.state = "out";
+          ghost.dir = DIR_LEFT;
+        }
+        if (ghost.state === "eyes" && manhattan(ghost, HOUSE) < 0.4) {
+          ghost.x = ghost.house.x;
+          ghost.y = ghost.house.y;
+          ghost.state = "leaving";
+        }
+      };
+
+      const killPac = (pac) => {
+        if (!pac.alive) return;
+        pac.alive = false;
+        pac.lives -= 1;
+        pac.respawn = 3;
+        audio.beep(220, 0.3, "triangle", 0.06);
+        if (!pac.ai) {
+          phase = pac.lives <= 0 ? "over" : "dying";
+          phaseTime = 0;
+        }
+      };
+
+      const eatGhost = (pac, ghost) => {
+        ghost.state = "eyes";
+        ghostCombo += 1;
+        pac.score += 200 * 2 ** Math.min(ghostCombo - 1, 3);
+        audio.beep(660, 0.12, "square", 0.05);
+      };
+
+      const collide = () => {
+        for (const pac of livingPacs()) {
+          for (const ghost of ghosts) {
+            if (Math.abs(pac.x - ghost.x) < 0.55 && Math.abs(pac.y - ghost.y) < 0.55) {
+              if (ghost.state === "eyes") continue;
+              if (frightened > 0 && ghost.state === "out") eatGhost(pac, ghost);
+              else if (ghost.state === "out") killPac(pac);
+            }
+          }
+        }
+      };
+
+      const resetActors = (mode) => {
+        for (const pac of pacs) {
+          pac.x = pac.start.x;
+          pac.y = pac.start.y;
+          pac.dir = DIR_LEFT;
+          pac.nextDir = DIR_LEFT;
+          pac.respawn = 0;
+          if (mode === "fresh") {
+            pac.score = 0;
+            pac.lives = 3;
+            pac.alive = true;
+          } else {
+            pac.alive = pac.lives > 0;
+          }
+        }
+        for (const ghost of ghosts) {
+          ghost.x = ghost.start.x;
+          ghost.y = ghost.start.y;
+          ghost.dir = ghost.id === "blinky" ? DIR_LEFT : ghost.id === "pinky" ? DIR_DOWN : DIR_UP;
+          ghost.state = ghost.id === "blinky" ? "out" : "house";
+          ghost.mode = "scatter";
+        }
+        frightened = 0;
+        ghostCombo = 0;
+        modeTime = 0;
+        modeIndex = 0;
+        sinceDot = 0;
+        if (mode === "fresh" || mode === "level") {
+          dotsEaten = 0;
+          globalDots = 0;
+          useGlobalCounter = false;
+        } else {
+          globalDots = 0;
+          useGlobalCounter = true;
+        }
+      };
+
+      const resetMaze = () => {
+        maze = MAZE.map((row) => row.split(""));
+        buildMaze();
+      };
+
+      const scoresEl = document.getElementById("scores");
+      const ghostsEl = document.getElementById("ghosts");
+      const overlay = document.getElementById("overlay");
+      const bannerTitle = document.getElementById("banner-title");
+      const bannerBody = document.getElementById("banner-body");
+      const startBtn = document.getElementById("start");
+      let hudKey = "";
+
+      const renderHud = () => {
+        const nextKey =
+          pacs.map((p) => `${p.score}:${p.lives}:${p.alive}`).join("|") +
+          ghosts.map((g) => g.state).join(",") +
+          `${pelletsLeft}:${level}`;
+        if (nextKey === hudKey) return;
+        hudKey = nextKey;
+        scoresEl.innerHTML = pacs
+          .map(
+            (p) => `<div class="row">
+              <span class="swatch" style="background:#${p.color.toString(16).padStart(6, "0")};color:#${p.color.toString(16).padStart(6, "0")}"></span>
+              <span>${p.name}${p.alive ? "" : " (out)"}</span>
+              <span class="score">${p.score}</span>
+              <span class="lives">${"●".repeat(Math.max(0, p.lives))}</span>
+            </div>`
+          )
+          .join("");
+        ghostsEl.innerHTML = ghosts
+          .map((g) => {
+            const label = g.state === "out" ? "OUT" : g.state === "leaving" ? "EXIT" : g.state === "eyes" ? "EYES" : "PEN";
+            return `<div class="ghost ${g.state === "out" ? "out" : ""}" style="color:#${g.color.toString(16).padStart(6, "0")}"><b>${g.name}</b>${label}</div>`;
+          })
+          .join("");
+      };
+
+      const showOverlay = (title, body, interactive, action = "Start") => {
+        bannerTitle.textContent = title;
+        bannerBody.textContent = body;
+        startBtn.textContent = action;
+        overlay.classList.toggle("hidden", false);
+        overlay.classList.toggle("interactive", interactive);
+        startBtn.classList.toggle("hidden", !interactive);
+      };
+
+      const hideOverlay = () => overlay.classList.add("hidden");
+
+      const rankingText = () => {
+        const ranked = [...pacs].sort((a, b) => b.score - a.score);
+        return ranked.map((p, i) => `${i + 1}. ${p.name} ${p.score}`).join(" · ");
+      };
+
+      const startLevel = (mode) => {
+        if (mode === "fresh") {
+          level = 1;
+          resetMaze();
+        } else if (mode === "level") {
+          resetMaze();
+        }
+        resetActors(mode);
+        phase = "ready";
+        phaseTime = 0;
+        showOverlay("READY!", `Level ${level}. Blinky starts outside. Pinky, Inky, then Clyde leave the house one at a time.`, false);
+      };
+
+      document.getElementById("start").addEventListener("click", () => {
+        audio.ensure();
+        if (phase === "start" || phase === "over") startLevel("fresh");
+        else if (phase === "win") {
+          level += 1;
+          startLevel("level");
+        } else if (phase === "ready") {
+          hideOverlay();
+          phase = "play";
+          return;
+        }
+        hideOverlay();
+        phase = "play";
+      });
+      document.getElementById("restart").addEventListener("click", () => {
+        audio.ensure();
+        startLevel("fresh");
+        hideOverlay();
+        phase = "play";
+      });
+
+      addEventListener("resize", () => {
+        renderer.setSize(innerWidth, innerHeight);
+        fitCamera();
+      });
+
+      buildMaze();
+      resetActors("fresh");
+      renderHud();
+
+      let last = performance.now();
+      const tick = (now) => {
+        const dt = Math.min(0.033, (now - last) / 1000);
+        last = now;
+        phaseTime += dt;
+
+        if (phase === "ready") {
+          if (phaseTime > 2) {
+            hideOverlay();
+            phase = "play";
+          }
+        } else if (phase === "dying") {
+          if (phaseTime > 1.6) {
+            if (player.lives <= 0) {
+              phase = "over";
+              showOverlay("GAME OVER", rankingText(), true, "Play again");
+            } else {
+              resetActors("life");
+              phase = "ready";
+              phaseTime = 0;
+              showOverlay("READY!", "Blinky is already outside. Pinky, Inky, then Clyde follow.", false);
+            }
+          }
+        } else if (phase === "play") {
+          if (frightened > 0) {
+            frightened -= dt;
+            if (frightened <= 0) {
+              frightened = 0;
+              ghostCombo = 0;
+            }
+          } else {
+            modeTime += dt;
+            if (modeTime >= MODE_TIMES[modeIndex]) {
+              modeTime = 0;
+              modeIndex = Math.min(modeIndex + 1, MODE_TIMES.length - 1);
+              const next = modeIndex % 2 === 0 ? "scatter" : "chase";
+              for (const ghost of ghosts) {
+                if (ghost.state === "out") ghost.dir = OPPOSITE[ghost.dir];
+                ghost.mode = next;
+              }
+            } else {
+              const current = modeIndex % 2 === 0 ? "scatter" : "chase";
+              for (const ghost of ghosts) ghost.mode = current;
+            }
+          }
+
+          updateRelease(dt);
+
+          const pacSpeed = 7.1;
+          const ghostSpeed = (ghost) => {
+            if (ghost.state === "eyes") return 14;
+            if (ghost.state === "house" || ghost.state === "leaving") return 4.2;
+            if (frightened > 0) return 4.4;
+            if (Math.round(ghost.y) === TUNNEL_ROW && (ghost.x < 5 || ghost.x > 22)) return 3.8;
+            return 6.4 + level * 0.15;
+          };
+
+          for (const pac of pacs) {
+            if (!pac.alive) {
+              pac.respawn -= dt;
+              if (pac.respawn <= 0 && pac.lives > 0 && pac.ai) {
+                pac.alive = true;
+                pac.x = pac.start.x;
+                pac.y = pac.start.y;
+              }
+              continue;
+            }
+            moveActor(pac, pac.ai ? 6.7 : pacSpeed, dt, false);
+            eatAt(pac);
+          }
+          for (const ghost of ghosts) {
+            moveActor(ghost, ghostSpeed(ghost), dt, true);
+            finishLeaving(ghost);
+          }
+          collide();
+
+          if (pelletsLeft <= 0) {
+            phase = "win";
+            showOverlay("BOARD CLEAR", rankingText(), true, "Next level");
+            audio.beep(880, 0.25, "square", 0.05);
+          }
+        }
+
+        for (const cell of pelletCells) {
+          if (cell.power && !cell.eaten) {
+            const s = 1 + Math.sin(now * 0.008) * 0.18;
+            cell.mesh.scale.setScalar(s);
+          }
+        }
+        for (const pac of pacs) placeMesh(pac, false);
+        for (const ghost of ghosts) {
+          placeMesh(ghost, true);
+          colorGhost(ghost);
+        }
+        renderHud();
+        renderer.render(scene, camera);
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
