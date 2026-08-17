@@ -748,6 +748,10 @@
         dogs: [],
         dogSpawnIn: DOG_SPAWN_S,
         dogSeq: 1,
+        pathFinds: 0,
+        statusIn: 0,
+        nbs: null,
+        denKeys: null,
       };
 
       const NAME_PREFIX = [
@@ -874,6 +878,39 @@
 
         state.grid = grid;
         state.dens = dens;
+        buildNav();
+      }
+
+      function buildNav() {
+        const denKeys = new Set();
+        for (const den of state.dens) {
+          for (const cell of den.cells) denKeys.add(`${cell.r},${cell.c}`);
+        }
+        const nbs = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            if (gridWalk(r, c) !== 0) continue;
+            const out = [];
+            for (const [dr, dc] of [
+              [1, 0],
+              [-1, 0],
+              [0, 1],
+              [0, -1],
+            ]) {
+              const nr = r + dr;
+              const nc = c + dc;
+              if (gridWalk(nr, nc) === 0) out.push({ r: nr, c: nc });
+            }
+            nbs[r][c] = out;
+          }
+        }
+        state.nbs = nbs;
+        state.denKeys = denKeys;
+      }
+
+      function gridWalk(r, c) {
+        if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return 1;
+        return state.grid[r][c];
       }
 
       function mazeCenter() {
@@ -935,6 +972,8 @@
       }
 
       function neighbors(r, c) {
+        const cached = state.nbs?.[r]?.[c];
+        if (cached) return cached;
         const out = [];
         for (const [dr, dc] of [
           [1, 0],
@@ -953,22 +992,76 @@
         return Math.abs(a.r - b.r) + Math.abs(a.c - b.c);
       }
 
-      function astar(start, goal) {
-        if (start.r === goal.r && start.c === goal.c) return [{ ...start }];
-        const key = (r, c) => `${r},${c}`;
-        const open = [{ r: start.r, c: start.c, g: 0, f: heuristic(start, goal) }];
-        const came = new Map();
-        const best = new Map([[key(start.r, start.c), 0]]);
-        const queued = new Set([key(start.r, start.c)]);
+      function nearestWalkable(cell) {
+        if (walkable(cell.r, cell.c)) return { r: cell.r, c: cell.c };
+        for (let rad = 1; rad <= 8; rad++) {
+          for (let dr = -rad; dr <= rad; dr++) {
+            for (let dc = -rad; dc <= rad; dc++) {
+              if (Math.max(Math.abs(dr), Math.abs(dc)) !== rad) continue;
+              const r = cell.r + dr;
+              const c = cell.c + dc;
+              if (walkable(r, c)) return { r, c };
+            }
+          }
+        }
+        return mazeCenter();
+      }
 
-        while (open.length) {
-          let bestI = 0;
-          for (let i = 1; i < open.length; i++) if (open[i].f < open[bestI].f) bestI = i;
-          const cur = open.splice(bestI, 1)[0];
-          queued.delete(key(cur.r, cur.c));
-          if (cur.r === goal.r && cur.c === goal.c) {
+      function heapPush(heap, node) {
+        heap.push(node);
+        let i = heap.length - 1;
+        while (i > 0) {
+          const p = (i - 1) >> 1;
+          if (heap[p].f <= heap[i].f) break;
+          const tmp = heap[p];
+          heap[p] = heap[i];
+          heap[i] = tmp;
+          i = p;
+        }
+      }
+
+      function heapPop(heap) {
+        const top = heap[0];
+        const last = heap.pop();
+        if (!heap.length) return top;
+        heap[0] = last;
+        let i = 0;
+        for (;;) {
+          const l = i * 2 + 1;
+          const r = l + 1;
+          let m = i;
+          if (l < heap.length && heap[l].f < heap[m].f) m = l;
+          if (r < heap.length && heap[r].f < heap[m].f) m = r;
+          if (m === i) break;
+          const tmp = heap[m];
+          heap[m] = heap[i];
+          heap[i] = tmp;
+          i = m;
+        }
+        return top;
+      }
+
+      const PATH_BUDGET = 3;
+      const ASTAR_ITERS = 420;
+
+      function astar(start, goal) {
+        const s = nearestWalkable(start);
+        const g = nearestWalkable(goal);
+        if (s.r === g.r && s.c === g.c) return [{ ...s }];
+        const key = (r, c) => (r << 8) | c;
+        const open = [];
+        heapPush(open, { r: s.r, c: s.c, g: 0, f: heuristic(s, g) });
+        const came = new Map();
+        const best = new Map([[key(s.r, s.c), 0]]);
+        let iters = 0;
+
+        while (open.length && iters++ < ASTAR_ITERS) {
+          const cur = heapPop(open);
+          const ck = key(cur.r, cur.c);
+          if (cur.g !== best.get(ck)) continue;
+          if (cur.r === g.r && cur.c === g.c) {
             const path = [{ r: cur.r, c: cur.c }];
-            let k = key(cur.r, cur.c);
+            let k = ck;
             while (came.has(k)) {
               const prev = came.get(k);
               path.push(prev);
@@ -977,17 +1070,15 @@
             path.reverse();
             return path;
           }
-          for (const n of neighbors(cur.r, cur.c)) {
-            const g = cur.g + 1;
+          const nbs = neighbors(cur.r, cur.c);
+          for (let i = 0; i < nbs.length; i++) {
+            const n = nbs[i];
+            const ng = cur.g + 1;
             const nk = key(n.r, n.c);
-            if (g < (best.get(nk) ?? Infinity)) {
-              came.set(nk, { r: cur.r, c: cur.c });
-              best.set(nk, g);
-              if (!queued.has(nk)) {
-                open.push({ r: n.r, c: n.c, g, f: g + heuristic(n, goal) });
-                queued.add(nk);
-              }
-            }
+            if (ng >= (best.get(nk) ?? Infinity)) continue;
+            came.set(nk, { r: cur.r, c: cur.c });
+            best.set(nk, ng);
+            heapPush(open, { r: n.r, c: n.c, g: ng, f: ng + heuristic(n, g) });
           }
         }
         return null;
@@ -1574,6 +1665,7 @@
       }
 
       function isDenCell(r, c) {
+        if (state.denKeys) return state.denKeys.has(`${r},${c}`);
         return state.dens.some((den) => den.cells.some((cell) => cell.r === r && cell.c === c));
       }
 
@@ -1650,7 +1742,7 @@
           z: pos.z,
           path: [],
           pathI: 0,
-          rethink: 0.2 + Math.random(),
+          rethink: 0.4 + Math.random() * 1.4,
           facing: 0,
           carrying: null,
           followDeputy: extra.followDeputy ?? false,
@@ -1859,11 +1951,16 @@
       }
 
       function retargetDog(dog) {
+        if (state.pathFinds >= PATH_BUDGET) {
+          dog.rethink = 0.04 + Math.random() * 0.08;
+          return;
+        }
+        state.pathFinds += 1;
         const goal = pickDogGoal(dog);
         const path = astar({ r: dog.r, c: dog.c }, goal);
         dog.path = path && path.length ? path : [];
         dog.pathI = 1;
-        dog.rethink = isNight() ? 0.8 : 0.45;
+        dog.rethink = isNight() ? 0.8 : 0.55;
         setDogLabel(dog);
       }
 
@@ -1904,7 +2001,7 @@
           setDogLabel(dog);
         }
         dog.rethink -= dt;
-        if (dog.rethink <= 0 || !dog.path) retargetDog(dog);
+        if (dog.rethink <= 0 || !dog.path || !dog.path.length) retargetDog(dog);
         if (!dog.path || dog.pathI >= dog.path.length) return;
 
         const next = dog.path[dog.pathI];
@@ -2264,15 +2361,20 @@
       }
 
       function retarget(cat) {
+        if (state.pathFinds >= PATH_BUDGET) {
+          cat.rethink = 0.04 + Math.random() * 0.08;
+          return;
+        }
+        state.pathFinds += 1;
         const goal = pickGoal(cat);
         const path = astar({ r: cat.r, c: cat.c }, goal);
         cat.path = path && path.length ? path : [];
         cat.pathI = 1;
         cat.rethink = cat.carrying ? 0.55 : 1.4 + Math.random() * 1.6;
         if (cat.role === "leader" && !cat.player) {
-          cat.rethink = cat.carrying ? 0.3 : 0.4;
+          cat.rethink = cat.carrying ? 0.35 : 0.55;
         }
-        if (!cat.player && !cat.carrying && inOwnDen(cat)) cat.rethink = 0.12;
+        if (!cat.player && !cat.carrying && inOwnDen(cat)) cat.rethink = 0.28;
         else if (cat.followPlayer && clanPlayer(cat)?.role === "deputy") {
           cat.rethink = Math.min(cat.rethink, 0.55);
         }
@@ -2429,7 +2531,7 @@
           return;
         }
         cat.rethink -= dt;
-        if (cat.rethink <= 0 || !cat.path) retarget(cat);
+        if (cat.rethink <= 0 || !cat.path || !cat.path.length) retarget(cat);
         if (!cat.path || cat.pathI >= cat.path.length) return;
 
         const next = cat.path[cat.pathI];
@@ -2565,7 +2667,9 @@
             </div>`
           );
         }
+      }
 
+      function checkOver() {
         const aliveClans = state.dens.filter((d) => !d.eliminated);
         if (!state.over && aliveClans.length <= 1) {
           state.over = true;
@@ -2662,6 +2766,7 @@
         if (state.paused) return;
         const step = Math.min(dt, 0.05) * state.speed;
         state.t += step;
+        state.pathFinds = 0;
 
         for (const cat of state.cats) {
           if (cat.dead) continue;
@@ -2698,8 +2803,8 @@
           if (cat.role === "deputy" && cat.patrolUntil > 0) {
             cat.patrolUntil = Math.max(0, cat.patrolUntil - step);
           }
-          if (!cat.player && !cat.carrying && inOwnDen(cat)) {
-            cat.rethink = Math.min(cat.rethink, 0.08);
+          if (!cat.player && !cat.carrying && inOwnDen(cat) && (!cat.path || cat.pathI >= cat.path.length)) {
+            cat.rethink = Math.min(cat.rethink, 0.28);
           }
           moveCat(cat, step);
           tryPickup(cat);
@@ -2736,9 +2841,11 @@
           state.preySpawnIn = 2.8 + Math.random() * 7.5;
           if (mapPrey().length < MAX_PREY) {
             spawnPrey();
+            let delay = 0;
             for (const cat of liveCats()) {
               if ((cat.role === "leader" || cat.role === "deputy") && !cat.carrying) {
-                cat.rethink = 0;
+                cat.rethink = Math.min(cat.rethink, delay);
+                delay += 0.06;
               }
             }
           }
@@ -2746,7 +2853,12 @@
         for (const prey of state.prey) syncPreyVisual(prey);
 
         resolveCollisions();
-        updateStatus();
+        checkOver();
+        state.statusIn -= dt;
+        if (state.statusIn <= 0) {
+          state.statusIn = 0.22;
+          updateStatus();
+        }
       }
 
       pauseBtn.addEventListener("click", () => {
