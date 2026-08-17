@@ -81,15 +81,12 @@ Load Three.js from jsDelivr with an import map. Pin **0.185.1** for both the cor
 Every project landing page and the hub (`public/index.html`) must show a fixed **build badge** in the top-right corner. Keep it unobtrusive: very small type, low-contrast color, no interaction.
 
 - **Version** — show `v1` on the first shipped iteration; increment by 1 on every agent iteration that changes that page (for example `v2`, `v3`).
-- **Built timestamp** — show when that iteration was built, in **Pacific Time** (`America/Los_Angeles`, labeled `PST` or `PDT` as appropriate). Use a readable form such as `Aug 17, 2026 1:53 PM PST`.
+- **Built timestamp** — show when that iteration was built, in **Pacific Time** (`America/Los_Angeles`). Combine version and timestamp on one line: `v1 2026-08-17 14:21` (`v` + number, `YYYY-MM-DD`, 24-hour `HH:MM`).
 - **Placement** — `position: fixed; top: …; right: …;` with `pointer-events: none` so it never blocks gameplay or links.
 - **Updates** — bump the version and refresh the timestamp whenever you edit that page during an iteration.
 
 ```html
-<div class="build-badge" aria-hidden="true">
-  <div>v1</div>
-  <div>Aug 17, 2026 1:53 PM PST</div>
-</div>
+<div class="build-badge" aria-hidden="true">v1 2026-08-17 14:21</div>
 ```
 
 ```css
