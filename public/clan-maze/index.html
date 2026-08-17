@@ -383,9 +383,25 @@
         text-decoration: line-through;
         opacity: 0.7;
       }
+      .build-badge {
+        position: fixed;
+        top: 0.35rem;
+        right: 0.5rem;
+        z-index: 9999;
+        font-size: 0.65rem;
+        line-height: 1.25;
+        color: rgba(148, 163, 184, 0.72);
+        text-align: right;
+        pointer-events: none;
+        user-select: none;
+      }
     </style>
   </head>
   <body>
+    <div class="build-badge" aria-hidden="true">
+      <div>v1</div>
+      <div>Aug 17, 2026 2:16 PM PDT</div>
+    </div>
     <aside class="hud" id="hud">
       <div class="hud-top">
         <h1>Clan Maze</h1>

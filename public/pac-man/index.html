@@ -189,9 +189,25 @@
       @media (min-width: 900px) {
         .pad { display: none; }
       }
+      .build-badge {
+        position: fixed;
+        top: 0.35rem;
+        right: 0.5rem;
+        z-index: 9999;
+        font-size: 0.65rem;
+        line-height: 1.25;
+        color: rgba(148, 163, 184, 0.72);
+        text-align: right;
+        pointer-events: none;
+        user-select: none;
+      }
     </style>
   </head>
   <body>
+    <div class="build-badge" aria-hidden="true">
+      <div>v1</div>
+      <div>Aug 17, 2026 2:16 PM PDT</div>
+    </div>
     <aside class="hud">
       <h1>PAC-MAN</h1>
       <p class="lede">One maze, five Pac-Men. You steer yellow. Four AI rivals eat the same dots. Ghosts leave the house one at a time.</p>
