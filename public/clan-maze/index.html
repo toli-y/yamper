@@ -141,6 +141,9 @@
         font-size: 0.8rem;
         color: #cbd5e1;
       }
+      .clan-pick.dim {
+        opacity: 0.45;
+      }
       input[type="range"] {
         width: 100%;
         accent-color: #22d3ee;
@@ -435,6 +438,17 @@
         <button type="button" data-time="day" class="active">Day</button>
         <button type="button" data-time="night">Night</button>
         <button type="button" data-time="auto">Auto</button>
+      </div>
+      <p class="pick-caption">Tags</p>
+      <div class="clan-pick" id="tag-toggle">
+        <button type="button" data-tags="on" class="active">On</button>
+        <button type="button" data-tags="off">Off</button>
+      </div>
+      <div class="clan-pick" id="tag-fields">
+        <button type="button" data-tag-field="name" class="active">Name</button>
+        <button type="button" data-tag-field="role" class="active">Role</button>
+        <button type="button" data-tag-field="hp" class="active">HP</button>
+        <button type="button" data-tag-field="dens" class="active">Dens</button>
       </div>
       <p class="hint">
         Drag to orbit, scroll to zoom. Hide the panel for a full view. Top-left arrows pan the camera.
@@ -752,6 +766,8 @@
         liveDogList: [],
         lastDayAmt: -1,
         frameT0: 0,
+        tagsOn: true,
+        tagShow: { name: true, role: true, hp: true, dens: true },
       };
 
       const NAME_PREFIX = [
@@ -1381,30 +1397,56 @@
         return `${roleName} ${cat.clanName}`;
       }
 
+      function tagsWanted() {
+        return state.tagsOn && (state.tagShow.name || state.tagShow.role || state.tagShow.hp);
+      }
+
       function setCatLabel(cat) {
-        const hpKind = hpClass(cat.hp);
-        const lives =
-          cat.role === "leader" ? `<span class="lives">${cat.lives}</span>` : "";
-        cat.labelEl.innerHTML = `
-          <div class="catname">${cat.catName || ""}</div>
-          <div class="role">${roleLabel(cat)}</div>
-          <div class="nums">
-            <span class="hp ${hpKind}">${cat.respawning || cat.dead ? 0 : cat.hp}</span>${lives}
-          </div>`;
+        if (!cat.labelEl || !cat.label) return;
+        const show = tagsWanted() && cat.mesh.visible;
+        cat.label.visible = show;
+        if (!show) return;
+        const parts = [];
+        if (state.tagShow.name) {
+          parts.push(`<div class="catname">${cat.catName || ""}</div>`);
+        }
+        if (state.tagShow.role) {
+          parts.push(`<div class="role">${roleLabel(cat)}</div>`);
+        }
+        if (state.tagShow.hp) {
+          const hpKind = hpClass(cat.hp);
+          const lives =
+            cat.role === "leader" ? `<span class="lives">${cat.lives}</span>` : "";
+          parts.push(`<div class="nums"><span class="hp ${hpKind}">${
+            cat.respawning || cat.dead ? 0 : cat.hp
+          }</span>${lives}</div>`);
+        }
+        cat.labelEl.innerHTML = parts.join("");
       }
 
       function setDogLabel(dog) {
-        const hpKind = dog.hp <= 6 ? "low" : dog.hp <= 14 ? "mid" : "";
-        const rest = dog.sleeping ? "Sleeping" : isNight() ? "Returning" : "Hunting";
-        dog.labelEl.innerHTML = `
-          <div class="catname">${dog.dogName}</div>
-          <div class="role">${rest}</div>
-          <div class="nums">
-            <span class="hp ${hpKind}">${dog.dead ? 0 : dog.hp}</span>
-          </div>`;
+        if (!dog.labelEl || !dog.label) return;
+        const show = tagsWanted() && dog.mesh.visible;
+        dog.label.visible = show;
+        if (!show) return;
+        const parts = [];
+        if (state.tagShow.name) {
+          parts.push(`<div class="catname">${dog.dogName}</div>`);
+        }
+        if (state.tagShow.role) {
+          const rest = dog.sleeping ? "Sleeping" : isNight() ? "Returning" : "Hunting";
+          parts.push(`<div class="role">${rest}</div>`);
+        }
+        if (state.tagShow.hp) {
+          const hpKind = dog.hp <= 6 ? "low" : dog.hp <= 14 ? "mid" : "";
+          parts.push(`<div class="nums"><span class="hp ${hpKind}">${dog.dead ? 0 : dog.hp}</span></div>`);
+        }
+        dog.labelEl.innerHTML = parts.join("");
       }
 
       function setDenLabel(den) {
+        if (!den.labelEl) return;
+        if (den.label) den.label.visible = state.tagsOn && state.tagShow.dens;
         let sub = "";
         if (den.eliminated) sub = `<span class="x">✕</span>`;
         else if (den.respawnIn > 0) {
@@ -1413,6 +1455,12 @@
         den.labelEl.innerHTML = `<span class="name">${den.name}</span>${sub}`;
         den.labelEl.classList.toggle("out", den.eliminated);
         if (den.xMark) den.xMark.visible = den.eliminated;
+      }
+
+      function refreshTags() {
+        for (const cat of state.cats) setCatLabel(cat);
+        for (const dog of state.dogs) setDogLabel(dog);
+        for (const den of state.dens) setDenLabel(den);
       }
 
       function cellRand(r, c, salt = 0) {
@@ -1941,7 +1989,7 @@
 
       function hideDog(dog, hidden) {
         dog.mesh.visible = !hidden;
-        dog.label.visible = !hidden;
+        if (dog.label) dog.label.visible = !hidden && tagsWanted();
       }
 
       function despawnDog(dog) {
@@ -2157,7 +2205,7 @@
 
       function hideCat(cat, hidden) {
         cat.mesh.visible = !hidden;
-        cat.label.visible = !hidden;
+        if (cat.label) cat.label.visible = !hidden && tagsWanted();
       }
 
       function placeCat(cat, cell) {
@@ -2901,6 +2949,8 @@
       const clanPick = document.getElementById("clan-pick");
       const rolePick = document.getElementById("role-pick");
       const timePick = document.getElementById("time-pick");
+      const tagToggle = document.getElementById("tag-toggle");
+      const tagFields = document.getElementById("tag-fields");
       const dpad = document.getElementById("dpad");
       const lookPad = document.getElementById("look-pad");
       const hud = document.getElementById("hud");
@@ -2918,6 +2968,13 @@
         }
         for (const btn of timePick.querySelectorAll("button")) {
           btn.classList.toggle("active", btn.dataset.time === state.timeMode);
+        }
+        for (const btn of tagToggle.querySelectorAll("button")) {
+          btn.classList.toggle("active", (btn.dataset.tags === "on") === state.tagsOn);
+        }
+        tagFields.classList.toggle("dim", !state.tagsOn);
+        for (const btn of tagFields.querySelectorAll("button")) {
+          btn.classList.toggle("active", !!state.tagShow[btn.dataset.tagField]);
         }
       }
 
@@ -2970,6 +3027,21 @@
         const btn = e.target.closest("button[data-time]");
         if (!btn) return;
         setTimeMode(btn.dataset.time);
+      });
+      tagToggle.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-tags]");
+        if (!btn) return;
+        state.tagsOn = btn.dataset.tags === "on";
+        syncPlayUi();
+        refreshTags();
+      });
+      tagFields.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-tag-field]");
+        if (!btn) return;
+        const field = btn.dataset.tagField;
+        state.tagShow[field] = !state.tagShow[field];
+        syncPlayUi();
+        refreshTags();
       });
 
       const keyDir = {
