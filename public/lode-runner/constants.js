@@ -2,7 +2,8 @@
 
 export const SPEED = Object.freeze({
   player: 5.35,
-  guard: 3.7,
+  guard: 2.35,
+  guardCarry: 1.9,
   fall: 9.4,
 });
 
@@ -11,7 +12,8 @@ export const HOLE_LIFE = 6.75;
 export const HOLE_STUCK = 3.15;
 export const ALIGN = 0.22;
 export const START_LIVES = 5;
-export const THINK_INTERVAL = 0.08;
+export const THINK_INTERVAL = 0.22;
+export const TURN_PAUSE = 0.18;
 export const MAX_LIVES = 9;
 export const PATH_BUDGET = 500;
 

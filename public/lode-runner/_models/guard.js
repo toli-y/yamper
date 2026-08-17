@@ -235,7 +235,7 @@ export function makeGuard(THREE) {
     resetPose();
 
     if (state === "walk") {
-      const s = snap(t, 15);
+      const s = snap(t, 8);
       leftLeg.rotation.x = -s * 0.62;
       rightLeg.rotation.x = s * 0.62;
       leftLeg.rotation.z = s * 0.12;
@@ -252,7 +252,7 @@ export function makeGuard(THREE) {
     }
 
     if (state === "climb") {
-      const s = snap(t, 12);
+      const s = snap(t, 7);
       leftArm.rotation.x = -2.35 + s * 0.46;
       rightArm.rotation.x = -2.35 - s * 0.46;
       leftArm.rotation.z = 0.22;

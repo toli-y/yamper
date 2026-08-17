@@ -4,9 +4,9 @@ import { createGold, createGuard, createRunner } from "./actors.js";
 import { Sfx } from "./audio.js";
 import { Board } from "./board.js";
 import { thinkGuard } from "./chase.js";
-import { CATCH, DIG_TIME, HOLE_LIFE, MAX_LIVES, SCORE, SPEED, START_LIVES, THINK_INTERVAL } from "./constants.js";
+import { CATCH, DIG_TIME, HOLE_LIFE, MAX_LIVES, SCORE, SPEED, START_LIVES, TURN_PAUSE } from "./constants.js";
 import { Input } from "./input.js";
-import { aligned, moveFall, roundish, snapUndrivenAxes, supported, tryStep } from "./movement.js";
+import { aligned, atTileCenter, moveFall, roundish, snapUndrivenAxes, supported, tryStep } from "./movement.js";
 import { STAGES } from "./stages.js";
 import { View } from "./view.js";
 
@@ -245,6 +245,10 @@ export class Game {
         guard.stuck = false;
         guard.falling = true;
         guard.climbingOut = 0;
+        guard.wish.x = 0;
+        guard.wish.y = 0;
+        guard.decidedAt = "";
+        guard.thinkT = 0.15;
         guard.mesh.visible = true;
         this.refreshHud();
         return;
@@ -391,15 +395,42 @@ export class Game {
       } else {
         guard.falling = false;
         guard.thinkT -= dt;
-        if (guard.thinkT <= 0 || (!guard.wish.x && !guard.wish.y)) {
+        const idle = !guard.wish.x && !guard.wish.y;
+        const cell = `${roundish(guard.x)},${roundish(guard.y)}`;
+        const ready = atTileCenter(guard) && guard.thinkT <= 0 && (idle || guard.decidedAt !== cell);
+        if (ready) {
+          const prevX = guard.wish.x;
+          const prevY = guard.wish.y;
           thinkGuard(this.board, guard, this.runner);
-          guard.thinkT = THINK_INTERVAL;
+          guard.decidedAt = cell;
+          const turned = (prevX || prevY) && (prevX !== guard.wish.x || prevY !== guard.wish.y);
+          if (turned) {
+            guard.x = roundish(guard.x);
+            guard.y = roundish(guard.y);
+            guard.thinkT = TURN_PAUSE;
+          }
         }
-        tryStep(this.board, guard, guard.wish.x, guard.wish.y, SPEED.guard, dt);
-        snapUndrivenAxes(guard, guard.wish);
+        const pausing = atTileCenter(guard) && guard.thinkT > 0;
+        if (!pausing) {
+          const speed = guard.carrying ? SPEED.guardCarry : SPEED.guard;
+          const x0 = guard.x;
+          const y0 = guard.y;
+          tryStep(this.board, guard, guard.wish.x, guard.wish.y, speed, dt);
+          snapUndrivenAxes(guard, guard.wish);
+          if (
+            atTileCenter(guard) &&
+            (guard.wish.x || guard.wish.y) &&
+            Math.abs(guard.x - x0) < 1e-6 &&
+            Math.abs(guard.y - y0) < 1e-6
+          ) {
+            guard.wish.x = 0;
+            guard.wish.y = 0;
+            guard.decidedAt = "";
+          }
+        }
         if (guard.carrying) {
           if (Math.abs(guard.wish.x) > 0) {
-            guard.dropIn -= dt * SPEED.guard;
+            guard.dropIn -= dt * SPEED.guardCarry;
             if (guard.dropIn <= 0) this.dropGold(guard);
           }
         } else {
