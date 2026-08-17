@@ -390,11 +390,12 @@
       </div>
       <div class="hud-body" id="hud-body">
       <p class="lede">
-        Four dens sit at the corners of a square maze. Clanmates leave the den to
-        patrol. Play as deputy and a few warriors may follow you; play as medicine cat
-        and injured clanmates come to you. Deputies lead battle patrols more often than
-        hunting patrols. Prey brought home usually raises a warrior, with a 10% chance
-        of a deputy and a 5% chance of a medicine cat.
+        Four dens sit at the corners of a square maze. Leaders hunt prey dots and
+        carry them home to raise warriors. Clanmates leave the den to patrol. Play as
+        deputy and a few warriors may follow you; play as medicine cat and injured
+        clanmates come to you. Deputies lead battle patrols more often than hunting
+        patrols. Prey brought home usually raises a warrior, with a 10% chance of a
+        deputy and a 5% chance of a medicine cat.
       </p>
       <ul class="perks">
         <li><b>ThunderClan</b> — 40% extra warrior when a deputy or leader brings prey home.</li>
@@ -477,7 +478,7 @@
       const MAX_WARRIORS = 8;
       const MAX_DEPUTIES = 4;
       const MAX_MEDS = 3;
-      const PICKUP_R2 = 0.62 ** 2;
+      const PICKUP_R2 = 0.9 ** 2;
 
       const CLANS = [
         {
@@ -2002,7 +2003,20 @@
 
       function tryPickup(cat) {
         if (cat.carrying) return;
-        if (cat.role !== "leader" && cat.role !== "deputy") return;
+        if (cat.role === "leader") {
+          grabNearestPrey(cat);
+          return;
+        }
+        if (cat.role !== "deputy") return;
+        if (cat.patrol !== "hunt") return;
+        const leader = liveCats().find(
+          (c) => c.clanId === cat.clanId && c.role === "leader" && !c.dead && !c.respawning
+        );
+        if (leader && !leader.carrying) return;
+        grabNearestPrey(cat);
+      }
+
+      function grabNearestPrey(cat) {
         for (const prey of state.prey) {
           if (prey.carriedBy) continue;
           if (dist2(cat, prey) > PICKUP_R2) continue;
@@ -2193,6 +2207,14 @@
           return leaveDenGoal(cat);
         }
 
+        if (cat.role === "leader") {
+          if (cat.carrying) return cat.den.mid;
+          if (cat.hp <= 2 && med) return followAlly(cat, med);
+          const prey = nearestPrey(cat);
+          if (prey) return { r: prey.r, c: prey.c };
+          return leaveDenGoal(cat);
+        }
+
         if (you && you.role === "medicine" && cat.hp < START_HP) {
           return followAlly(cat, you);
         }
@@ -2209,15 +2231,13 @@
             const target = pickBattleTarget(cat);
             if (target) return followAlly(cat, target);
           }
-          const prey = nearestPrey(cat);
-          if (prey) return { r: prey.r, c: prey.c };
+          const clanLeader = allies.find((c) => c.role === "leader" && !c.respawning);
+          if (!clanLeader || clanLeader.carrying) {
+            const prey = nearestPrey(cat);
+            if (prey) return { r: prey.r, c: prey.c };
+          }
           const fallback = pickBattleTarget(cat);
           if (fallback) return followAlly(cat, fallback);
-        }
-
-        if (cat.role === "leader") {
-          const prey = nearestPrey(cat);
-          if (prey) return { r: prey.r, c: prey.c };
         }
 
         if (cat.role === "warrior") {
@@ -2249,6 +2269,9 @@
         cat.path = path && path.length ? path : [];
         cat.pathI = 1;
         cat.rethink = cat.carrying ? 0.55 : 1.4 + Math.random() * 1.6;
+        if (cat.role === "leader" && !cat.player) {
+          cat.rethink = cat.carrying ? 0.3 : 0.4;
+        }
         if (!cat.player && !cat.carrying && inOwnDen(cat)) cat.rethink = 0.12;
         else if (cat.followPlayer && clanPlayer(cat)?.role === "deputy") {
           cat.rethink = Math.min(cat.rethink, 0.55);
