@@ -391,9 +391,10 @@
       <div class="hud-body" id="hud-body">
       <p class="lede">
         Four dens sit at the corners of a square maze. Clanmates leave the den to
-        fight with you. Deputies lead battle patrols more often than hunting patrols,
-        and hunt isolated enemy warriors. Prey brought home usually raises a warrior,
-        with a 10% chance of a deputy and a 5% chance of a medicine cat.
+        patrol. Play as deputy and a few warriors may follow you; play as medicine cat
+        and injured clanmates come to you. Deputies lead battle patrols more often than
+        hunting patrols. Prey brought home usually raises a warrior, with a 10% chance
+        of a deputy and a 5% chance of a medicine cat.
       </p>
       <ul class="perks">
         <li><b>ThunderClan</b> — 40% extra warrior when a deputy or leader brings prey home.</li>
@@ -1592,13 +1593,29 @@
 
       function followAlly(cat, other) {
         if (!other || other.dead || other.respawning) return leaveDenGoal(cat);
-        if (inOwnDen(other) && !cat.carrying) return leaveDenGoal(cat);
+        if (inOwnDen(other) && !cat.carrying && other.role !== "medicine") {
+          return leaveDenGoal(cat);
+        }
         const manh = Math.abs(other.r - cat.r) + Math.abs(other.c - cat.c);
         if (manh <= 1) {
           const near = neighbors(other.r, other.c).filter((n) => !isDenCell(n.r, n.c));
           if (near.length) return near[Math.floor(Math.random() * near.length)];
         }
         return { r: other.r, c: other.c };
+      }
+
+      function assignPlayerFollow(cat) {
+        if (cat.followPlayer != null) return cat.followPlayer;
+        const you = clanPlayer(cat);
+        if (!you || you.role !== "deputy" || cat.role !== "warrior") {
+          cat.followPlayer = false;
+          return false;
+        }
+        const already = liveCats().filter(
+          (c) => c.clanId === cat.clanId && c !== cat && c.followPlayer
+        ).length;
+        cat.followPlayer = already < 2 && Math.random() < 0.38;
+        return cat.followPlayer;
       }
 
       function createCat(den, role, cell, extra = {}) {
@@ -1636,6 +1653,7 @@
           facing: 0,
           carrying: null,
           followDeputy: extra.followDeputy ?? false,
+          followPlayer: extra.followPlayer ?? null,
           patrol: extra.patrol ?? (role === "deputy" ? (Math.random() < 0.72 ? "battle" : "hunt") : null),
           patrolUntil: extra.patrolUntil ?? (role === "deputy" ? 5 + Math.random() * 7 : 0),
           player: extra.player ?? false,
@@ -2172,29 +2190,15 @@
             injured.sort((a, b) => dist2(cat, a) - dist2(cat, b));
             return followAlly(cat, injured[0]);
           }
-          if (you) return followAlly(cat, you);
           return leaveDenGoal(cat);
         }
 
-        if (cat.hp <= 4 && med) return followAlly(cat, med);
-        if (cat.hp <= 3 && you) return followAlly(cat, you);
-
-        if (cat.carrying) return cat.den.mid;
-
-        if (you) {
-          const nearYou = threats.filter((e) => dist2(e, you) < 140);
-          if (nearYou.length) {
-            nearYou.sort((a, b) => dist2(you, a) - dist2(you, b));
-            return followAlly(cat, nearYou[0]);
-          }
-          if (cat.role === "leader") {
-            const prey = nearestPrey(cat);
-            if (prey && dist2(cat, prey) < dist2(cat, you) * 0.45) {
-              return { r: prey.r, c: prey.c };
-            }
-          }
+        if (you && you.role === "medicine" && cat.hp < START_HP) {
           return followAlly(cat, you);
         }
+        if (cat.hp <= 4 && med && !med.player) return followAlly(cat, med);
+
+        if (cat.carrying) return cat.den.mid;
 
         if (cat.role === "deputy") {
           if (cat.patrolUntil <= 0) {
@@ -2217,6 +2221,9 @@
         }
 
         if (cat.role === "warrior") {
+          if (assignPlayerFollow(cat) && you && you.role === "deputy") {
+            return followAlly(cat, you);
+          }
           const deputies = allies.filter((c) => c.role === "deputy" && !c.player);
           const battleDeputy = deputies.find((c) => c.patrol === "battle" && !inOwnDen(c));
           if (battleDeputy && Math.random() < 0.75) cat.followDeputy = true;
@@ -2243,6 +2250,9 @@
         cat.pathI = 1;
         cat.rethink = cat.carrying ? 0.55 : 1.4 + Math.random() * 1.6;
         if (!cat.player && !cat.carrying && inOwnDen(cat)) cat.rethink = 0.12;
+        else if (cat.followPlayer && clanPlayer(cat)?.role === "deputy") {
+          cat.rethink = Math.min(cat.rethink, 0.55);
+        }
       }
 
       function finishPlayerRespawn(cat) {
