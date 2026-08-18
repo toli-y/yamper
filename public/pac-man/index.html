@@ -20,11 +20,11 @@
         --muted: #94a3b8;
         --line: #243044;
         --panel: rgba(8, 12, 20, 0.86);
-        --you: #ffcc00;
-        --blinky: #ff3b30;
-        --pinky: #ff9ee8;
-        --inky: #22d3ee;
-        --clyde: #ffb347;
+        --you: #ffff00;
+        --blinky: #ff0000;
+        --pinky: #ffb8ff;
+        --inky: #00ffff;
+        --clyde: #ffb852;
       }
       html,
       body {
@@ -168,7 +168,7 @@
         position: fixed;
         left: 1rem;
         bottom: 1rem;
-        z-index: 3;
+        z-index: 5;
         display: grid;
         grid-template-columns: 3.1rem 3.1rem 3.1rem;
         grid-template-rows: 3.1rem 3.1rem 3.1rem;
@@ -204,7 +204,7 @@
     </style>
   </head>
   <body>
-    <div class="build-badge" aria-hidden="true">v2 2026-08-17 14:22</div>
+    <div class="build-badge" aria-hidden="true">v3 2026-08-17 21:15</div>
     <aside class="hud">
       <h1>PAC-MAN</h1>
       <p class="lede">One maze, five Pac-Men. You steer yellow. Four AI rivals eat the same dots. Ghosts leave the house one at a time.</p>
@@ -215,7 +215,7 @@
     <div class="overlay interactive" id="overlay">
       <div class="banner">
         <h2 id="banner-title">READY!</h2>
-        <p id="banner-body">Arrows or WASD to move. Eat 244 pellets before the ghosts or the other Pac-Men do.</p>
+        <p id="banner-body">Arrows or WASD to move. You can steer during READY. Eat 244 pellets before the ghosts or the other Pac-Men do.</p>
         <button type="button" id="start">Start</button>
       </div>
     </div>
@@ -282,7 +282,7 @@
       const FORBIDDEN_UP = new Set(["12,11", "15,11", "12,23", "15,23"]);
 
       const PAC_DEFS = [
-        { id: "you", name: "You", color: 0xffcc00, ai: false, start: { x: 14, y: 23 }, fear: 6, bias: 0 },
+        { id: "you", name: "You", color: 0xffff00, ai: false, start: { x: 14, y: 23 }, fear: 6, bias: 0 },
         { id: "amber", name: "Amber", color: 0xff9f1c, ai: true, start: { x: 1, y: 1 }, fear: 5, bias: 0 },
         { id: "honey", name: "Honey", color: 0xf5e6a3, ai: true, start: { x: 26, y: 1 }, fear: 8, bias: 1 },
         { id: "mint", name: "Mint", color: 0x9dffb0, ai: true, start: { x: 1, y: 29 }, fear: 4, bias: 2 },
@@ -290,10 +290,10 @@
       ];
 
       const GHOST_DEFS = [
-        { id: "blinky", name: "Blinky", color: 0xff3b30, start: { x: 14, y: 11 }, house: { x: 14, y: 14 }, dir: DIR_LEFT, scatter: { x: 25, y: 0 } },
-        { id: "pinky", name: "Pinky", color: 0xff9ee8, start: { x: 14, y: 14 }, house: { x: 14, y: 14 }, dir: DIR_DOWN, scatter: { x: 2, y: 0 } },
-        { id: "inky", name: "Inky", color: 0x22d3ee, start: { x: 12, y: 14 }, house: { x: 12, y: 14 }, dir: DIR_UP, scatter: { x: 27, y: 30 } },
-        { id: "clyde", name: "Clyde", color: 0xffb347, start: { x: 16, y: 14 }, house: { x: 16, y: 14 }, dir: DIR_UP, scatter: { x: 0, y: 30 } },
+        { id: "blinky", name: "Blinky", color: 0xff0000, start: { x: 14, y: 11 }, house: { x: 14, y: 14 }, dir: DIR_LEFT, scatter: { x: 25, y: 0 } },
+        { id: "pinky", name: "Pinky", color: 0xffb8ff, start: { x: 14, y: 14 }, house: { x: 14, y: 14 }, dir: DIR_DOWN, scatter: { x: 2, y: 0 } },
+        { id: "inky", name: "Inky", color: 0x00ffff, start: { x: 12, y: 14 }, house: { x: 12, y: 14 }, dir: DIR_UP, scatter: { x: 27, y: 30 } },
+        { id: "clyde", name: "Clyde", color: 0xffb852, start: { x: 16, y: 14 }, house: { x: 16, y: 14 }, dir: DIR_UP, scatter: { x: 0, y: 30 } },
       ];
 
       const tile = (x, y) => {
@@ -354,6 +354,8 @@
       renderer.setSize(innerWidth, innerHeight);
       renderer.setClearColor(0x02040a, 1);
       document.body.appendChild(renderer.domElement);
+      renderer.domElement.tabIndex = 0;
+      renderer.domElement.style.outline = "none";
 
       const scene = new THREE.Scene();
       scene.fog = new THREE.Fog(0x02040a, 36, 72);
@@ -488,25 +490,59 @@
         }
       };
 
+      const PAC_RADIUS = 0.42;
+      const PAC_THICKNESS = 0.11;
+      const PAC_MOUTH_CLOSED = (4 * Math.PI) / 180;
+      const PAC_MOUTH_OPEN = (42 * Math.PI) / 180;
+
+      const makePacShape = (radius, mouthHalfAngle) => {
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(Math.cos(-mouthHalfAngle) * radius, Math.sin(-mouthHalfAngle) * radius);
+        shape.absarc(0, 0, radius, -mouthHalfAngle, mouthHalfAngle, true);
+        shape.lineTo(0, 0);
+        return shape;
+      };
+
+      const makePacBodyGeometry = (mouthHalfAngle) => {
+        const geo = new THREE.ExtrudeGeometry(makePacShape(PAC_RADIUS, mouthHalfAngle), {
+          depth: PAC_THICKNESS,
+          bevelEnabled: false,
+          steps: 1,
+        });
+        geo.rotateX(-Math.PI / 2);
+        geo.translate(0, PAC_THICKNESS * 0.5, 0);
+        return geo;
+      };
+
       const makePacMesh = (color) => {
         const group = new THREE.Group();
-        const geo = new THREE.SphereGeometry(0.42, 22, 16, 0.55, Math.PI * 2 - 1.1);
-        const mat = new THREE.MeshStandardMaterial({
+        let mouthHalf = PAC_MOUTH_OPEN;
+        const bodyMat = new THREE.MeshStandardMaterial({
           color,
           emissive: color,
-          emissiveIntensity: 0.28,
-          roughness: 0.35,
+          emissiveIntensity: 0.18,
+          roughness: 0.5,
+          metalness: 0,
         });
-        const body = new THREE.Mesh(geo, mat);
-        body.rotation.z = Math.PI / 2;
+        const body = new THREE.Mesh(makePacBodyGeometry(mouthHalf), bodyMat);
         group.add(body);
         const eye = new THREE.Mesh(
-          new THREE.SphereGeometry(0.07, 8, 8),
-          new THREE.MeshStandardMaterial({ color: 0x111111 })
+          new THREE.CircleGeometry(0.064, 14),
+          new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide })
         );
-        eye.position.set(0.12, 0.18, -0.22);
-        group.add(eye);
+        eye.rotation.x = -Math.PI / 2;
+        eye.position.set(-0.165, PAC_THICKNESS * 0.5 + 0.006, -0.155);
+        body.add(eye);
+        const setMouth = (halfAngle) => {
+          const clamped = THREE.MathUtils.clamp(halfAngle, PAC_MOUTH_CLOSED, PAC_MOUTH_OPEN);
+          if (Math.abs(clamped - mouthHalf) < 1e-4) return;
+          mouthHalf = clamped;
+          body.geometry.dispose();
+          body.geometry = makePacBodyGeometry(mouthHalf);
+        };
         group.userData.body = body;
+        group.userData.setMouth = setMouth;
         return group;
       };
 
@@ -520,35 +556,86 @@
         group.add(ring);
       };
 
+      const buildGhostSilhouetteShape = (halfW = 0.38) => {
+        const shape = new THREE.Shape();
+        const topY = 0.36;
+        const joinY = topY - halfW;
+        const hemY = -0.24;
+        const bumpR = (halfW * 2) / 6;
+        const bumpCenters = [-halfW + bumpR, 0, halfW - bumpR];
+        shape.moveTo(-halfW, hemY);
+        for (let i = 0; i < 3; i++) {
+          if (i > 0) shape.lineTo(bumpCenters[i] - bumpR, hemY);
+          shape.absarc(bumpCenters[i], hemY, bumpR, Math.PI, 0, true);
+        }
+        shape.lineTo(halfW, hemY);
+        shape.lineTo(halfW, joinY);
+        shape.absarc(0, joinY, halfW, 0, Math.PI, false);
+        shape.lineTo(-halfW, hemY);
+        return shape;
+      };
+
       const makeGhostMesh = (color) => {
         const group = new THREE.Group();
-        const mat = new THREE.MeshStandardMaterial({
+        const bodyMat = new THREE.MeshStandardMaterial({
           color,
           emissive: color,
-          emissiveIntensity: 0.35,
-          roughness: 0.4,
+          emissiveIntensity: 0.32,
+          roughness: 0.42,
+          metalness: 0.02,
         });
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 18, 14, 0, Math.PI * 2, 0, Math.PI / 2), mat);
-        head.position.y = 0.08;
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.4, 0.42, 18), mat);
-        body.position.y = -0.12;
-        group.add(head, body);
-        for (let i = 0; i < 4; i++) {
-          const flap = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), mat);
-          flap.position.set(-0.27 + i * 0.18, -0.34, 0);
-          group.add(flap);
-        }
-        const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-        const pupilMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8 });
+        const shape = buildGhostSilhouetteShape(0.38);
+        const bodyGeo = new THREE.ExtrudeGeometry(shape, {
+          depth: 0.46,
+          bevelEnabled: true,
+          bevelThickness: 0.028,
+          bevelSize: 0.028,
+          bevelSegments: 2,
+          curveSegments: 24,
+        });
+        bodyGeo.computeBoundingBox();
+        const bb = bodyGeo.boundingBox;
+        bodyGeo.translate(0, -(bb.min.y + bb.max.y) / 2, -0.23);
+        const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+        group.add(bodyMesh);
+        const eyeMat = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.35,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.08,
+        });
+        const pupilMat = new THREE.MeshStandardMaterial({
+          color: 0x2121de,
+          roughness: 0.35,
+          emissive: 0x0a0a80,
+          emissiveIntensity: 0.15,
+        });
+        const eyeGeo = new THREE.CircleGeometry(0.128, 24);
+        const pupilGeo = new THREE.CircleGeometry(0.062, 16);
+        const eyes = [];
+        const pupils = [];
+        const eyeY = 0.1;
+        const eyeX = 0.158;
+        const faceZ = 0.24;
         for (const side of [-1, 1]) {
-          const eye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), eyeMat);
-          eye.position.set(side * 0.14, 0.16, 0.22);
-          const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), pupilMat);
-          pupil.position.set(side * 0.14, 0.16, 0.3);
-          group.add(eye, pupil);
+          const eye = new THREE.Mesh(eyeGeo, eyeMat);
+          eye.position.set(side * eyeX, eyeY, faceZ);
+          group.add(eye);
+          eyes.push(eye);
+          const pupil = new THREE.Mesh(pupilGeo, pupilMat);
+          pupil.position.set(side * eyeX, eyeY, faceZ + 0.006);
+          group.add(pupil);
+          pupils.push(pupil);
         }
         group.userData.baseColor = color;
-        group.userData.mat = mat;
+        group.userData.mat = bodyMat;
+        group.userData.bodyMat = bodyMat;
+        group.userData.bodyMesh = bodyMesh;
+        group.userData.eyeMat = eyeMat;
+        group.userData.pupilMat = pupilMat;
+        group.userData.eyes = eyes;
+        group.userData.pupils = pupils;
+        group.userData.pupilRest = pupils.map((p) => ({ x: p.position.x, y: p.position.y, z: p.position.z }));
         return group;
       };
 
@@ -600,13 +687,22 @@
         if (y === -1) player.nextDir = DIR_UP;
       };
 
+      const pollKeys = () => {
+        if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) setWanted(1, 0);
+        else if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) setWanted(-1, 0);
+        else if (keys.has("ArrowDown") || keys.has("s") || keys.has("S")) setWanted(0, 1);
+        else if (keys.has("ArrowUp") || keys.has("w") || keys.has("W")) setWanted(0, -1);
+      };
+
       addEventListener("keydown", (event) => {
         keys.add(event.key);
         if (event.key === "ArrowRight" || event.key === "d" || event.key === "D") setWanted(1, 0);
         if (event.key === "ArrowLeft" || event.key === "a" || event.key === "A") setWanted(-1, 0);
         if (event.key === "ArrowDown" || event.key === "s" || event.key === "S") setWanted(0, 1);
         if (event.key === "ArrowUp" || event.key === "w" || event.key === "W") setWanted(0, -1);
-        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) event.preventDefault();
+        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "w", "a", "s", "d", "W", "A", "S", "D"].includes(event.key)) {
+          event.preventDefault();
+        }
       });
       addEventListener("keyup", (event) => keys.delete(event.key));
 
@@ -876,34 +972,73 @@
       const placeMesh = (actor, isGhost) => {
         const p = worldPos(actor.x, actor.y);
         actor.mesh.position.set(p.x, isGhost ? 0.28 : 0.32, p.z);
-        const angle = -actor.dir * (Math.PI / 2);
-        actor.mesh.rotation.y = angle;
+        actor.mesh.rotation.y = -actor.dir * (Math.PI / 2);
         if (!isGhost) {
-          actor.mouth += 0.18;
+          actor.mouth += 0.28;
           actor.mesh.scale.set(1, 1, 1);
-          actor.mesh.userData.body.rotation.x = Math.sin(actor.mouth) * 0.08;
           actor.mesh.visible = actor.alive;
+          const openT = (Math.sin(actor.mouth) + 1) * 0.5;
+          const halfAngle = THREE.MathUtils.lerp(PAC_MOUTH_CLOSED, PAC_MOUTH_OPEN, openT);
+          actor.mesh.userData.setMouth?.(halfAngle);
+          return;
+        }
+        const ud = actor.mesh.userData;
+        if (ud.pupils?.length && ud.pupilRest?.length) {
+          const look = 0.042;
+          const dx = DIRS[actor.dir].x * look;
+          const dz = DIRS[actor.dir].y * look;
+          ud.pupils.forEach((pupil, i) => {
+            const rest = ud.pupilRest[i];
+            pupil.position.set(rest.x + dx, rest.y, rest.z + dz);
+          });
+        }
+        if (ud.bodyMesh && actor.state !== "eyes") {
+          const wobble = Math.sin(performance.now() * 0.012 + actor.x + actor.y) * 0.018;
+          ud.bodyMesh.position.y = wobble;
         }
       };
 
       const colorGhost = (ghost) => {
-        const mat = ghost.mesh.userData.mat;
+        const ud = ghost.mesh.userData;
+        const bodyMat = ud.bodyMat ?? ud.mat;
+        const bodyMesh = ud.bodyMesh;
+        const eyeMat = ud.eyeMat;
+        const pupilMat = ud.pupilMat;
+        const eyes = ud.eyes ?? [];
+        const pupils = ud.pupils ?? [];
+        const setEyesVisible = (on) => {
+          for (const eye of eyes) eye.visible = on;
+          for (const pupil of pupils) pupil.visible = on;
+        };
         if (ghost.state === "eyes") {
-          mat.color.setHex(0x99aacc);
-          mat.emissive.setHex(0x223355);
-          mat.opacity = 0.35;
-          mat.transparent = true;
-        } else if (frightened > 0 && ghost.state === "out") {
+          if (bodyMesh) bodyMesh.visible = false;
+          setEyesVisible(true);
+          eyeMat?.color.setHex(0xffffff);
+          eyeMat?.emissive?.setHex(0xffffff);
+          pupilMat?.color.setHex(0x2121de);
+          pupilMat?.emissive?.setHex(0x0a0a80);
+          return;
+        }
+        if (bodyMesh) bodyMesh.visible = true;
+        setEyesVisible(true);
+        bodyMat.transparent = false;
+        bodyMat.opacity = 1;
+        if (frightened > 0 && ghost.state === "out") {
           const flash = frightened < 2 && Math.floor(frightened * 6) % 2 === 0;
-          mat.color.setHex(flash ? 0xffffff : 0x1d4ed8);
-          mat.emissive.setHex(flash ? 0x99aaff : 0x1538a8);
-          mat.transparent = false;
-          mat.opacity = 1;
+          bodyMat.color.setHex(flash ? 0xffffff : 0x2121de);
+          bodyMat.emissive.setHex(flash ? 0x8888ff : 0x1414a0);
+          eyeMat?.color.setHex(0xffffff);
+          eyeMat?.emissive?.setHex(0xffffff);
+          pupilMat?.color.setHex(flash ? 0xff0000 : 0xffffff);
+          pupilMat?.emissive?.setHex(flash ? 0x880000 : 0x444444);
         } else {
-          mat.color.setHex(ghost.color);
-          mat.emissive.setHex(ghost.color);
-          mat.transparent = false;
-          mat.opacity = 1;
+          bodyMat.color.setHex(ghost.color);
+          bodyMat.emissive.setHex(ghost.color);
+          eyeMat?.color.setHex(0xffffff);
+          eyeMat?.emissive?.setHex(0xffffff);
+          if (eyeMat) eyeMat.emissiveIntensity = 0.08;
+          pupilMat?.color.setHex(0x2121de);
+          pupilMat?.emissive?.setHex(0x0a0a80);
         }
       };
 
@@ -1092,6 +1227,7 @@
 
       document.getElementById("start").addEventListener("click", () => {
         audio.ensure();
+        const buffered = player.nextDir;
         if (phase === "start" || phase === "over") startLevel("fresh");
         else if (phase === "win") {
           level += 1;
@@ -1099,16 +1235,23 @@
         } else if (phase === "ready") {
           hideOverlay();
           phase = "play";
+          player.nextDir = buffered;
+          renderer.domElement.focus({ preventScroll: true });
           return;
         }
+        player.nextDir = buffered;
         hideOverlay();
         phase = "play";
+        renderer.domElement.focus({ preventScroll: true });
       });
       document.getElementById("restart").addEventListener("click", () => {
         audio.ensure();
+        const buffered = player.nextDir;
         startLevel("fresh");
+        player.nextDir = buffered;
         hideOverlay();
         phase = "play";
+        renderer.domElement.focus({ preventScroll: true });
       });
 
       addEventListener("resize", () => {
@@ -1125,11 +1268,39 @@
         const dt = Math.min(0.033, (now - last) / 1000);
         last = now;
         phaseTime += dt;
+        pollKeys();
+
+        const pacSpeed = 7.1;
+        const ghostSpeed = (ghost) => {
+          if (ghost.state === "eyes") return 14;
+          if (ghost.state === "house" || ghost.state === "leaving") return 4.2;
+          if (frightened > 0) return 4.4;
+          if (Math.round(ghost.y) === TUNNEL_ROW && (ghost.x < 5 || ghost.x > 22)) return 3.8;
+          return 6.4 + level * 0.15;
+        };
+
+        const movePacs = () => {
+          for (const pac of pacs) {
+            if (!pac.alive) {
+              pac.respawn -= dt;
+              if (pac.respawn <= 0 && pac.lives > 0 && pac.ai) {
+                pac.alive = true;
+                pac.x = pac.start.x;
+                pac.y = pac.start.y;
+              }
+              continue;
+            }
+            moveActor(pac, pac.ai ? 6.7 : pacSpeed, dt, false);
+            eatAt(pac);
+          }
+        };
 
         if (phase === "ready") {
+          movePacs();
           if (phaseTime > 2) {
             hideOverlay();
             phase = "play";
+            renderer.domElement.focus({ preventScroll: true });
           }
         } else if (phase === "dying") {
           if (phaseTime > 1.6) {
@@ -1168,28 +1339,7 @@
 
           updateRelease(dt);
 
-          const pacSpeed = 7.1;
-          const ghostSpeed = (ghost) => {
-            if (ghost.state === "eyes") return 14;
-            if (ghost.state === "house" || ghost.state === "leaving") return 4.2;
-            if (frightened > 0) return 4.4;
-            if (Math.round(ghost.y) === TUNNEL_ROW && (ghost.x < 5 || ghost.x > 22)) return 3.8;
-            return 6.4 + level * 0.15;
-          };
-
-          for (const pac of pacs) {
-            if (!pac.alive) {
-              pac.respawn -= dt;
-              if (pac.respawn <= 0 && pac.lives > 0 && pac.ai) {
-                pac.alive = true;
-                pac.x = pac.start.x;
-                pac.y = pac.start.y;
-              }
-              continue;
-            }
-            moveActor(pac, pac.ai ? 6.7 : pacSpeed, dt, false);
-            eatAt(pac);
-          }
+          movePacs();
           for (const ghost of ghosts) {
             moveActor(ghost, ghostSpeed(ghost), dt, true);
             finishLeaving(ghost);
